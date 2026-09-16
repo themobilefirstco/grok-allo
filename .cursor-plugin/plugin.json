@@ -11,13 +11,20 @@
   "license": "Proprietary",
   "keywords": [
     "allo",
-    "allô",
     "withallo",
-    "allo phone",
-    "allo calls",
-    "allo mcp",
-    "allo receptionist",
-    "allo business phone"
+    "phone",
+    "sales",
+    "cold calling",
+    "outbound",
+    "ai",
+    "receptionist",
+    "ai receptionist",
+    "business phone",
+    "sms",
+    "call tracking",
+    "sales calls",
+    "phone system",
+    "power dialer"
   ],
   "logo": "assets/logo.png",
   "mcpServers": "./mcp.json"
