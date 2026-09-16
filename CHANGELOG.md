@@ -10,7 +10,7 @@ First release of the Allo plugin for Grok.
   authenticated via OAuth 2.1 + PKCE with no credentials in the repository.
 - `allo` skill — orchestration, discovery, read/write policy, confirmation rules,
   error handling, and worked multi-step examples.
-- `allo-call-intelligence` skill — call search, transcript analysis, theme
+- `allo-search` skill — call search, transcript analysis, theme
   extraction, follow-up detection, tagging.
 - `allo-analytics` skill — team KPIs and outbound funnel reporting, with
   single-call multi-entity comparison and tag-defined conversions.

@@ -6,7 +6,7 @@ argument-hint: "[date range, e.g. yesterday | this week]"
 Find the calls in my Allo workspace that still need a follow-up for:
 **$ARGUMENTS** (default to the last 7 days if empty).
 
-Use the `allo` and `allo-call-intelligence` skills. This is **read-only** —
+Use the `allo` and `allo-search` skills. This is **read-only** —
 do not send, tag, or mark anything.
 
 1. Resolve the date range explicitly.

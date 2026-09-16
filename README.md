@@ -381,10 +381,12 @@ make check
 .cursor-plugin/plugin.json Cursor / Grok Bot plugin manifest
 mcp.json                   Cursor / Grok Bot MCP + static OAuth CLIENT_ID
 skills/
-  allo/                    Primary orchestration skill
-  allo-call-intelligence/  Search, transcripts, reasoning over calls
+  allo/                    Orchestration + safety; routes to focus skills
+  allo-search/             Search conversations, calls, SMS, transcripts
+  allo-sms/                Draft and send SMS
   allo-analytics/          Team and outbound reporting
-  allo-receptionist/       AI receptionist and knowledge
+  allo-receptionist/       AI receptionist setup and knowledge
+  allo-call-flow/          Inbound call flow drafts (publish in Allo app)
 commands/                  /allo-briefing, /allo-followups, /allo-report
 assets/logo.svg
 tests/

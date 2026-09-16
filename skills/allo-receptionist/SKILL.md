@@ -1,117 +1,73 @@
 ---
 name: allo-receptionist
 description: >-
-  Configure and operate the Allo AI receptionist (AI phone agent) that answers
-  inbound calls. Use when the user wants to view or change the receptionist's
-  instructions, prompt, voice, or settings, take it online/offline, or manage the
-  websites it uses as knowledge. Triggers on "AI receptionist", "AI agent",
-  "answering service", "take the receptionist offline", "change what the
-  receptionist says", "add this website to its knowledge", "change its voice".
+  Configure and operate the Allo AI receptionist that answers inbound calls. Use
+  when setting up or editing the agent, voice, prompt, hours, transfer rules,
+  knowledge websites, calendars, or taking it live/offline. Triggers on "AI
+  receptionist", "AI agent", "set up the receptionist", "take it offline",
+  "transfer rules", "receptionist knowledge", "change its voice".
 metadata:
   author: Allo
-  short-description: Manage the AI receptionist's config, status, voice, and knowledge.
+  short-description: Set up and manage the AI receptionist.
 ---
 
 # Allo — AI receptionist
 
-The receptionist answers inbound calls when the team can't. **Every write here
-changes live call handling immediately.** There is no staging step and no undo.
-Treat this skill as higher-consequence than anything else in the plugin.
+Every write here can change live call handling. Confirm before status changes and
+destructive deletes.
 
-## Tools
+## Guides first
 
-| Tool | Effect |
+If the MCP exposes resources, read them before a full setup:
+
+- `allo-mcp://guides/ai-receptionist-setup`
+- `allo-mcp://guides/ai-receptionist-prompt`
+
+## Tool map
+
+| Tool | Role |
 |---|---|
-| `allo_get_agent` | Read current configuration |
-| `allo_update_agent` | Change configuration |
-| `allo_set_agent_prompt` | Replace the instructions |
-| `allo_set_agent_status` | Bring online / take offline |
-| `allo_list_voices` | Available voices |
-| `allo_add_agent_knowledge_website` | Add a site to its knowledge |
-| `allo_set_agent_knowledge_website_status` | Enable / disable a source |
-| `allo_delete_agent_knowledge` | **Delete a source — destructive, not undoable** |
+| `allo_list_numbers` | Pick the line |
+| `allo_get_agent` | Read full config (always before update) |
+| `allo_update_agent` | Business details, voice, hours, capabilities, transfer rules, calendars, knowledge text |
+| `allo_set_agent_prompt` | Objective / personality / behaviors (and optional sections) |
+| `allo_set_agent_status` | `ACTIVE` (answers) vs `FORWARDING` (does not) — high-consequence |
+| `allo_list_voices` | Voice catalog |
+| `allo_list_calendars` / `allo_get_calendar` | Booking targets |
+| `allo_add_agent_knowledge_website` | Add a page to answer from |
+| `allo_set_agent_knowledge_website_status` | Disable without delete |
+| `allo_delete_agent_knowledge` | Permanent remove — high-consequence |
 
-## Always read before you write
+## Merge rules (critical)
 
-Call `allo_get_agent` first, every time, without exception. It gives you three
-things you need: the current values (so you can show a real before/after), the
-fields you must not clobber, and the actual state (so you don't "take it offline"
-when it's already offline).
+From Allo MCP docs:
 
-Never construct an update from the user's words alone. Start from current
-configuration and change only what they asked about.
+- **Scalars merge** — omit a field and it keeps its value (name, voice, greeting…).
+- **Collections replace** — `capabilities`, `business_hours`, `transfer_rules`,
+  `scheduling.calendars` replace the whole set if sent. Read with `allo_get_agent`
+  and send back everything you want to keep.
 
-## Changing the prompt
+`allo_set_agent_prompt` replaces the whole prompt — resend every section you are
+keeping.
 
-The prompt is what the receptionist says and how it behaves on real customer
-calls. `allo_set_agent_prompt` **replaces** it.
+## Setup order
 
-1. Read the current prompt.
-2. If the user wants a modification ("also mention our hours", "be more
-   concise"), produce the **edited full prompt** based on the current one — do
-   not write a fresh prompt from scratch and quietly drop everything that was
-   there.
-3. Show the change before applying. A diff-style before/after for small edits,
-   or the full new prompt for a rewrite.
-4. Apply after the user agrees.
+1. Choose `allo_number`.
+2. Read current config (`allo_get_agent`).
+3. Ask the user for: agent name, language/voice, tone, goal (receptionist /
+   support / lead qualify / appointment), when it should pick up, must-ask
+   questions, transfer rules, knowledge (site URLs vs pasted facts).
+4. Apply `allo_update_agent` then `allo_set_agent_prompt`.
+5. Add knowledge websites if they have public pages.
+6. Confirm before `allo_set_agent_status=ACTIVE`.
 
-If the user asks for a wholesale replacement, confirm that's what they mean —
-"this will replace the current instructions entirely" — and show what's being
-lost.
+Calendar OAuth connect and document upload stay in the Allo app — say so when
+needed; you can still attach already-connected calendars via scheduling maps.
 
-## Status changes
+## Transfer rules
 
-`allo_set_agent_status` is one call with an outsized effect. Confirm first, and
-make the consequence concrete rather than abstract:
+Phrase `description` as the **caller's reason** ("billing questions"), not an
+instruction to the model. Targets must not loop back to the same receptionist
+line.
 
-> "Taking the receptionist offline means inbound calls to that line will no
-> longer be answered by it. Want me to go ahead?"
-
-Check current status first — if it's already in the requested state, say so
-instead of making a redundant write. When bringing it back online, confirm it's
-configured (has a prompt and voice) rather than silently enabling an empty agent.
-
-## Voice and configuration
-
-`allo_list_voices` before any voice change — voice identifiers come from that
-list, never from the user's description. If they say "something warmer", show
-them the available options and let them pick rather than guessing a mapping.
-
-For other configuration via `allo_update_agent`, read the tool schema and change
-only the fields in scope. Report what changed in plain language.
-
-## Knowledge sources
-
-The receptionist can draw on websites you add.
-
-- `allo_add_agent_knowledge_website` — adding a site means its content informs
-  what the receptionist tells customers. Confirm the exact URL, and flag if it's
-  a domain the user may not have meant (a competitor, a staging site).
-- `allo_set_agent_knowledge_website_status` — **the reversible lever.** Disabling
-  stops a source being used without losing it.
-- `allo_delete_agent_knowledge` — permanent.
-
-**Offer disable before delete.** When the user says "remove this" or "stop using
-this", that usually means "stop using it", not "destroy it". Ask which they mean:
-
-> "I can disable it — the receptionist stops using it but it stays saved — or
-> delete it permanently. Which do you want?"
-
-Before any delete, name the exact source and confirm. Never delete more than one
-source in a single confirmation, and never infer which source they meant when
-several could match — list the candidates and ask.
-
-## Scopes
-
-Receptionist capabilities depend on the workspace plan and the connection's
-granted scopes, and may not be present for every user. Check `allo_get_me` if a
-call fails. On an authorization error, say the connection may not have the
-required permission and suggest checking workspace permissions or reconnecting —
-never expose the underlying authorization detail.
-
-## Reporting
-
-After any change, state plainly what is now true: "The receptionist is offline",
-"Its instructions now include your holiday hours", "That knowledge source is
-disabled but still saved." The user should never have to re-read the config to
-find out what you did.
+When asked to remove knowledge: **offer disable before delete** via `allo_set_agent_knowledge_website_status`. Delete with `allo_delete_agent_knowledge` is permanent / not undoable.
