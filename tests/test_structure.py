@@ -114,7 +114,7 @@ class TestManifest(unittest.TestCase):
 
     def test_keywords_are_brand_scoped(self):
         # xAI rejects generic keywords: they mis-fire the plugin CTA on
-        # unrelated requests. Every keyword must be Allô-specific.
+        # unrelated requests. Every keyword must be Allo-specific.
         generic = {"phone", "calls", "sms", "crm", "api", "analytics", "voice", "ai"}
         for kw in self.manifest["keywords"]:
             self.assertNotIn(
@@ -246,10 +246,10 @@ class TestAuthConfiguration(unittest.TestCase):
             )
 
     def test_no_secrets_anywhere_in_the_repo(self):
-        # Allô key/token shapes plus generic high-entropy assignments.
+        # Allo key/token shapes plus generic high-entropy assignments.
         patterns = [
-            re.compile(r"\boat-[A-Fa-f0-9]{16,}"),          # Allô API key
-            re.compile(r"\btem-[A-Fa-f0-9]{16,}"),          # Allô team id
+            re.compile(r"\boat-[A-Fa-f0-9]{16,}"),          # Allo API key
+            re.compile(r"\btem-[A-Fa-f0-9]{16,}"),          # Allo team id
             re.compile(r"Bearer\s+[A-Za-z0-9_\-.]{20,}"),   # bearer token
             re.compile(r"(?i)\b(api[_-]?key|secret|token|password)\s*[:=]\s*[\"'][^\"'{}$<]{16,}[\"']"),
         ]
@@ -344,7 +344,7 @@ class TestNoInventedTools(unittest.TestCase):
             mentioned = set(TOOL_MENTION_RE.findall(path.read_text(encoding="utf-8")))
             unknown = sorted(mentioned - set(TOOLS) - ALLO_NON_TOOL_NAMES)
             with self.subTest(file=path.name):
-                self.assertEqual(unknown, [], f"unknown Allô tools referenced: {unknown}")
+                self.assertEqual(unknown, [], f"unknown Allo tools referenced: {unknown}")
 
     def test_primary_skill_covers_the_core_surface(self):
         text = (SKILLS_DIR / "allo" / "SKILL.md").read_text(encoding="utf-8")

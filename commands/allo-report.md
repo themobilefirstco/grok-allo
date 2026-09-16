@@ -1,9 +1,9 @@
 ---
-description: Allô team phone performance report with period-over-period comparison
+description: Allo team phone performance report with period-over-period comparison
 argument-hint: "[period, e.g. last week | this month] [optional: rep names]"
 ---
 
-Build an Allô team performance report for: **$ARGUMENTS**
+Build an Allo team performance report for: **$ARGUMENTS**
 (default to last week, whole team, if empty).
 
 Use the `allo-analytics` skill. Read-only.
@@ -21,5 +21,5 @@ Use the `allo-analytics` skill. Read-only.
 
 Report as: headline → what moved → who drove it → caveats → what to watch.
 
-Only report metrics Allô actually returned. Call out small denominators rather
+Only report metrics Allo actually returned. Call out small denominators rather
 than crowning a rep with a perfect rate on three dials.

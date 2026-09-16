@@ -2,11 +2,11 @@
 
 ## 1.0.0 — unreleased
 
-First release of the Allô plugin for Grok.
+First release of the Allo plugin for Grok.
 
 ### Added
 
-- Remote MCP declaration for the hosted Allô MCP (`https://mcp.withallo.com/mcp`),
+- Remote MCP declaration for the hosted Allo MCP (`https://mcp.withallo.com/mcp`),
   authenticated via OAuth 2.1 + PKCE with no credentials in the repository.
 - `allo` skill — orchestration, discovery, read/write policy, confirmation rules,
   error handling, and worked multi-step examples.
@@ -26,7 +26,7 @@ First release of the Allô plugin for Grok.
 
 ### Known blockers
 
-- Allô's authorization server advertises no `registration_endpoint`, so Grok
+- Allo's authorization server advertises no `registration_endpoint`, so Grok
   cannot dynamically register as an OAuth client. Requires either RFC 7591
-  support or a static Grok `client_id`. See "Required Allô backend changes" in
+  support or a static Grok `client_id`. See "Required Allo backend changes" in
   the README.

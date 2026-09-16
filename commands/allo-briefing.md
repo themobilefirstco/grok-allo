@@ -1,9 +1,9 @@
 ---
-description: Daily Allô briefing — call volume, what needs attention, and follow-ups
+description: Daily Allo briefing — call volume, what needs attention, and follow-ups
 argument-hint: "[date range, e.g. today | yesterday | this week]"
 ---
 
-Give me an Allô phone briefing for: **$ARGUMENTS** (default to today if empty).
+Give me an Allo phone briefing for: **$ARGUMENTS** (default to today if empty).
 
 Use the `allo` skill. Keep it read-only — take no write actions.
 
@@ -23,5 +23,5 @@ Report as:
   a callback, each with who and why.
 - **Notable calls** — anything significant, with attribution.
 
-Flag small samples. Don't invent metrics Allô didn't return. End by offering to
+Flag small samples. Don't invent metrics Allo didn't return. End by offering to
 draft follow-up texts — do not send anything.

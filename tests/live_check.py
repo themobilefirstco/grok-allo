@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live checks against the production Allô MCP server.
+"""Live checks against the production Allo MCP server.
 
 Covers checks 4 (MCP server connectivity) and 6 (tool discovery) of the plugin
 test plan. Kept out of the default unittest run because it needs the network.
@@ -125,7 +125,7 @@ def check_oauth_discovery():
     401 challenge -> protected resource metadata -> authorization server
     metadata. The last step also determines whether Grok can register itself
     as a client automatically (RFC 7591 dynamic client registration) or needs
-    a client_id issued by Allô out of band.
+    a client_id issued by Allo out of band.
     """
     base = MCP_URL.rsplit("/mcp", 1)[0]
     resource_url = f"{base}/.well-known/oauth-protected-resource"
@@ -164,9 +164,9 @@ def check_oauth_discovery():
     else:
         report(
             INFO,
-            "no registration_endpoint — Allô does not support RFC 7591 dynamic client "
+            "no registration_endpoint — Allo does not support RFC 7591 dynamic client "
             "registration, so Grok needs a pre-registered client_id (see README, "
-            "'Required Allô backend changes')",
+            "'Required Allo backend changes')",
         )
 
     scopes = server.get("scopes_supported") or []
@@ -224,7 +224,7 @@ def main():
     dump = "--dump" in sys.argv
     api_key = os.environ.get("ALLO_API_KEY")
 
-    print(f"Allô MCP live check — {MCP_URL}\n")
+    print(f"Allo MCP live check — {MCP_URL}\n")
     check_reachable_and_advertises_oauth()
     check_oauth_discovery()
 

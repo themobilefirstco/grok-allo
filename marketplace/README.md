@@ -1,6 +1,6 @@
 # Marketplace submission
 
-How to list **Allô** in the official Grok plugin catalog.
+How to list **Allo** in the official Grok plugin catalog.
 
 The catalog is [`xai-org/plugin-marketplace`](https://github.com/xai-org/plugin-marketplace) —
 an **index**, not a host. You don't upload anything and you don't submit an MCP
@@ -12,7 +12,7 @@ to paste once you replace the placeholder SHA.
 
 ## Before you submit
 
-- [ ] This repo is **public**, under the official Allô GitHub org. A branded
+- [ ] This repo is **public**, under the official Allo GitHub org. A branded
       plugin sourced from a personal account reads as possible impersonation and
       will be questioned — xAI names this as the single biggest cause of review
       delay.
@@ -63,7 +63,7 @@ plugin's files in this repo and vendors nothing in the catalog; updates ship by
 bumping the SHA. A **local** source vendors a copy under `external_plugins/allo/`
 and requires a catalog PR touching real files for every change.
 
-Remote is the better fit: Allô owns the code, and releases don't require
+Remote is the better fit: Allo owns the code, and releases don't require
 re-vendoring.
 
 ## What review checks
@@ -88,12 +88,12 @@ explicitly.
 
 ## Keywords and domains
 
-These power Grok's plugin CTA — the prompt that proactively suggests Allô — so
+These power Grok's plugin CTA — the prompt that proactively suggests Allo — so
 they must be **brand-scoped**. Generic terms like `phone`, `calls`, `sms`, or
 `crm` mis-fire the CTA on unrelated requests and get pushed back in review.
 
-Every keyword in `catalog-entry.json` is Allô-specific, and `domains` lists only
-hosts Allô owns. A test in `tests/test_structure.py` enforces this against the
+Every keyword in `catalog-entry.json` is Allo-specific, and `domains` lists only
+hosts Allo owns. A test in `tests/test_structure.py` enforces this against the
 manifest so it can't regress.
 
 ## Updating a live listing

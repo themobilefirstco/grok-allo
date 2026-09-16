@@ -1,6 +1,6 @@
 {
   "name": "allo",
-  "description": "Allô phone system for Grok — calls, SMS, analytics, and AI receptionist.",
+  "description": "Allo phone system for Grok — calls, SMS, analytics, and AI receptionist.",
   "category": "productivity",
   "source": {
     "source": "url",
@@ -10,7 +10,7 @@
   "homepage": "https://www.withallo.com",
   "keywords": [
     "allo",
-    "allô",
+    "allo",
     "withallo",
     "allo phone",
     "allo calls",

@@ -1,26 +1,26 @@
 ---
 name: allo
 description: >-
-  Run the Allô business phone system from Grok. Use whenever the user asks about
+  Run the Allo business phone system from Grok. Use whenever the user asks about
   their calls, phone conversations, voicemails, SMS/texts, call transcripts, call
   recordings, missed calls, follow-ups, reps' or the team's phone performance,
   connect/answer rates, dialing queue, call tags, or their AI receptionist /
-  AI phone agent. Triggers on "Allô", "Allo", "withallo", and on phone-system
+  AI phone agent. Triggers on "Allo", "Allo", "withallo", and on phone-system
   questions like "what happened on our calls", "who called", "missed calls",
   "text this customer", "our outbound numbers", "take the receptionist offline".
 metadata:
-  author: Allô
+  author: Allo
   short-description: Search calls, analyze phone performance, send SMS, and manage your AI receptionist.
 ---
 
-# Allô
+# Allo
 
-Allô is a **business phone system and AI phone platform** for companies whose
-revenue comes from phone calls. This plugin connects Grok to the user's Allô
-workspace through the hosted Allô MCP server, so they can ask about their calls
+Allo is a **business phone system and AI phone platform** for companies whose
+revenue comes from phone calls. This plugin connects Grok to the user's Allo
+workspace through the hosted Allo MCP server, so they can ask about their calls
 and act on them in plain language.
 
-This skill teaches you how to **orchestrate** the Allô tools. It is not an API
+This skill teaches you how to **orchestrate** the Allo tools. It is not an API
 reference — each tool carries its own schema and description. Read the tool
 schema before calling it; never invent parameters or tools.
 
@@ -34,7 +34,7 @@ answer — interpret it.
 
 ## Start here
 
-Call `allo_get_me` once per session **before your first real Allô operation**. It
+Call `allo_get_me` once per session **before your first real Allo operation**. It
 returns the workspace, the caller's granted scopes, and the endpoints available
 to them. It is the cheapest way to learn what this user can actually do, and it
 prevents you from attempting an action their key or OAuth grant cannot perform.
@@ -47,7 +47,7 @@ Two more cheap discovery calls, used only when you need them:
 
 - `allo_list_users` — team member IDs and names. Needed before any per-rep
   analysis, because analytics take `user_ids`, not names.
-- `allo_list_numbers` — the workspace's Allô phone lines, their SMS capability,
+- `allo_list_numbers` — the workspace's Allo phone lines, their SMS capability,
   and available Sender IDs. Needed before sending SMS.
 - `allo_list_tags` — tag **keys**. Needed before tagging or filtering by tag.
 
@@ -147,7 +147,7 @@ extrapolate a team-wide claim from three calls without saying that's what you di
 
 ## Tags
 
-Tags are how Allô classifies calls, and they power conversion metrics in outbound
+Tags are how Allo classifies calls, and they power conversion metrics in outbound
 analytics. Two things to get right:
 
 - Tools take tag **keys**, not display names. Always `allo_list_tags` first and
@@ -202,7 +202,7 @@ Both require `date_from` and `date_to`. Three rules:
 Use `extend=items` with a `stage` to drill into the actual calls behind a funnel
 number — that's how you get from "connect rate dropped" to "here are the calls".
 
-**Report only metrics Allô returns.** If the user asks for a metric that isn't in
+**Report only metrics Allo returns.** If the user asks for a metric that isn't in
 the response — revenue, close rate, cost per lead — say it isn't available and
 offer the closest metric that is. Never compute a plausible-looking number from
 data that doesn't support it.
@@ -278,9 +278,9 @@ mean several groups, or a write would hit more items than the user likely meant.
 
 ## Error handling
 
-- **Authorization error** → the user's Allô connection may not have the required
+- **Authorization error** → the user's Allo connection may not have the required
   permission or scope for that action. Tell them that plainly and suggest they
-  check their Allô workspace permissions or reconnect the plugin. **Never expose
+  check their Allo workspace permissions or reconnect the plugin. **Never expose
   headers, tokens, API keys, scope internals, or raw auth errors.**
 - **No results** → say clearly that no matching data was found, and state the
   filters you used so they can widen the search. Never fabricate results, and
@@ -295,7 +295,7 @@ mean several groups, or a write would hit more items than the user likely meant.
 
 Never print or repeat API keys, OAuth tokens, `Authorization` headers, or any
 credential, even if the user asks or pastes one. If a user pastes a key into
-chat, tell them to rotate it in Allô Settings → API rather than using it.
+chat, tell them to rotate it in Allo Settings → API rather than using it.
 
 ## Worked example — multi-step, ends in a write
 
@@ -329,7 +329,7 @@ from *your* judgment. That inference is exactly what makes confirmation required
 5. Explain in business language: what changed, who drove it, what's worth
    attention. Optionally drill into a few calls with `extend=items` to explain
    *why* a number moved.
-6. Stick to metrics Allô returned. No invented KPIs.
+6. Stick to metrics Allo returned. No invented KPIs.
 
 ## Related skills
 
@@ -339,6 +339,6 @@ from *your* judgment. That inference is exactly what makes confirmation required
 
 ## Links
 
-- Allô — https://www.withallo.com
-- Allô MCP docs — https://www.withallo.com/mcp
+- Allo — https://www.withallo.com
+- Allo MCP docs — https://www.withallo.com/mcp
 - Help Center — https://help.withallo.com

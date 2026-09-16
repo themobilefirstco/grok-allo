@@ -1,18 +1,18 @@
 ---
 name: allo-receptionist
 description: >-
-  Configure and operate the Allô AI receptionist (AI phone agent) that answers
+  Configure and operate the Allo AI receptionist (AI phone agent) that answers
   inbound calls. Use when the user wants to view or change the receptionist's
   instructions, prompt, voice, or settings, take it online/offline, or manage the
   websites it uses as knowledge. Triggers on "AI receptionist", "AI agent",
   "answering service", "take the receptionist offline", "change what the
   receptionist says", "add this website to its knowledge", "change its voice".
 metadata:
-  author: Allô
+  author: Allo
   short-description: Manage the AI receptionist's config, status, voice, and knowledge.
 ---
 
-# Allô — AI receptionist
+# Allo — AI receptionist
 
 The receptionist answers inbound calls when the team can't. **Every write here
 changes live call handling immediately.** There is no staging step and no undo.

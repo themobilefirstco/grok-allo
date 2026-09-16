@@ -1,6 +1,6 @@
-# Allô for Grok
+# Allo for Grok
 
-**Run your Allô business phone system directly from Grok.**
+**Run your Allo business phone system directly from Grok.**
 
 Ask Grok about your calls, your customers, and your team's performance — and act
 on the answer without leaving the conversation.
@@ -15,35 +15,35 @@ on the answer without leaving the conversation.
 
 ---
 
-## What Allô is
+## What Allo is
 
-[Allô](https://www.withallo.com) is a business phone system and AI phone platform
+[Allo](https://www.withallo.com) is a business phone system and AI phone platform
 built for companies whose revenue comes from phone calls. Calls, SMS,
 transcripts, call summaries, tagging, team analytics, a power dialer, and an AI
 receptionist that answers when your team can't — in one system.
 
 ## What this plugin does
 
-It connects Grok to your Allô workspace through Allô's hosted MCP server and
+It connects Grok to your Allo workspace through Allo's hosted MCP server and
 teaches Grok how to use it well.
 
 The plugin is deliberately **thin**. It ships no server, no proxy, and no
 backend of its own:
 
 ```
-Grok  →  Allô plugin (skills + MCP config)  →  https://mcp.withallo.com/mcp  →  Allô API
+Grok  →  Allo plugin (skills + MCP config)  →  https://mcp.withallo.com/mcp  →  Allo API
 ```
 
 All it contains is a manifest, a one-line MCP declaration, and the skills that
 turn "what's happening with our calls?" into the right sequence of tool calls.
-Your data goes from Allô to Grok directly.
+Your data goes from Allo to Grok directly.
 
 ## Which Grok does this work in?
 
-"Grok" is three different products, and they take Allô by two different routes.
+"Grok" is three different products, and they take Allo by two different routes.
 This matters before you install anything.
 
-| Surface | What it is | How Allô connects |
+| Surface | What it is | How Allo connects |
 |---|---|---|
 | **Grok Build** | The terminal coding agent (`.grok/`, `/marketplace`, SKILL.md) | **This plugin** |
 | **Grok** — grok.com and the mobile app | The chat assistant most people mean by "Grok" | **Custom connector** — no plugin |
@@ -54,7 +54,7 @@ marketplace) targets Grok Build. **The Cursor half** (`.cursor-plugin/`,
 `mcp.json`) targets Cursor and Grok Bot. Neither format installs into the Grok
 chat app at grok.com — that still uses a custom connector.
 
-### Using Allô in the Grok chat app
+### Using Allo in the Grok chat app
 
 You don't need a plugin — Grok supports bringing your own MCP server directly:
 
@@ -63,7 +63,7 @@ You don't need a plugin — Grok supports bringing your own MCP server directly:
 3. Server URL: `https://mcp.withallo.com/mcp`
 4. Complete authentication
 
-Grok then discovers Allô's tools and makes them available in conversation, the
+Grok then discovers Allo's tools and makes them available in conversation, the
 same as its built-in connectors.
 
 Two practical notes:
@@ -73,8 +73,8 @@ Two practical notes:
   because Grok tries to speak MCP to an OAuth endpoint.
 - **The same OAuth blocker applies.** Custom connectors authenticate via
   authorization-code + PKCE with dynamic client registration — exactly what
-  Allô's authorization server does not yet advertise. See
-  [Required Allô backend changes](#required-allô-backend-changes). That one fix
+  Allo's authorization server does not yet advertise. See
+  [Required Allo backend changes](#required-allo-backend-changes). That one fix
   unblocks the chat app, Grok Bot, and this plugin together.
 
 Business and Enterprise workspaces may require an admin to provision connectors,
@@ -89,7 +89,7 @@ needs no plugin, no marketplace PR, and no xAI review. If your users are
 developers, Grok Build and this plugin are the fit.
 
 The skills in this repo are still worth having either way: they encode the
-orchestration and safety rules that make Grok good at Allô rather than merely
+orchestration and safety rules that make Grok good at Allo rather than merely
 connected to it. A connector gives Grok the tools; the skills teach it judgment.
 
 ## Features
@@ -101,11 +101,11 @@ connected to it. A connector gives Grok the tools; the skills teach it judgment.
 | **Team analytics** | Call volume, talk time, answer rate, per-rep and per-line breakdowns, period-over-period comparison |
 | **Outbound analytics** | Dial funnel, connect and conversion rates, leaderboard, best-time-to-call heatmap |
 | **Tagging** | Classify calls with your workspace's tags, individually or in bulk |
-| **SMS** | Draft and send texts from your Allô lines or a Sender ID |
+| **SMS** | Draft and send texts from your Allo lines or a Sender ID |
 | **AI receptionist** | Read and update its instructions, voice, status, and website knowledge |
 | **Power dialer** | Inspect your queue and append numbers to it |
 
-Everything runs against the same tools and permissions your Allô workspace
+Everything runs against the same tools and permissions your Allo workspace
 already enforces. The plugin grants no access your account doesn't have.
 
 ## Example prompts
@@ -164,7 +164,7 @@ Inside Grok Build:
 ```
 
 Find **allo**, press `i` to install, then restart Grok Build. On first use Grok
-will prompt you to sign in to Allô (see [Authentication](#authentication)).
+will prompt you to sign in to Allo (see [Authentication](#authentication)).
 
 > **Status:** listing in the official xAI catalog requires a merged PR to
 > [`xai-org/plugin-marketplace`](https://github.com/xai-org/plugin-marketplace).
@@ -197,7 +197,7 @@ Grok discovers plugins from:
 
 This repo also ships a Cursor plugin twin (`.cursor-plugin/` + `mcp.json`) for
 Cursor and Grok Bot. Those clients do not use the Grok Build marketplace; they
-need a **static OAuth client ID** because Allô's authorization server has no
+need a **static OAuth client ID** because Allo's authorization server has no
 `registration_endpoint`.
 
 `mcp.json` declares the public Grok Bot / Cursor Agents client:
@@ -251,11 +251,11 @@ The MCP declaration carries no credentials at all:
 }
 ```
 
-Authentication is negotiated at runtime between Grok and Allô. The flow, verified
+Authentication is negotiated at runtime between Grok and Allo. The flow, verified
 against production:
 
 1. Grok calls `https://mcp.withallo.com/mcp` with no token.
-2. Allô answers `401` with
+2. Allo answers `401` with
    `WWW-Authenticate: Bearer resource_metadata="https://mcp.withallo.com/.well-known/oauth-protected-resource"`.
 3. Grok fetches that document and learns the authorization server is
    `https://api.withallo.com`.
@@ -265,7 +265,7 @@ against production:
    - token — `https://api.withallo.com/v1/oauth/token`
    - revoke — `https://api.withallo.com/v1/oauth/revoke`
    - PKCE `S256`, `authorization_code` + `refresh_token` grants
-5. Your browser opens, you approve access for your Allô workspace, and Grok
+5. Your browser opens, you approve access for your Allo workspace, and Grok
    stores the resulting token in its own credential store.
 
 Verify the whole chain yourself at any time:
@@ -276,33 +276,33 @@ python3 tests/live_check.py
 
 > ### ⚠️ One blocker before this works end to end
 >
-> Allô's authorization server does **not** currently advertise a
+> Allo's authorization server does **not** currently advertise a
 > `registration_endpoint`, so it does not support
 > [RFC 7591 dynamic client registration](https://datatracker.ietf.org/doc/html/rfc7591).
 > A client that has never been registered — which is what Grok is today — has no
 > way to obtain a `client_id` automatically.
 >
-> Allô already solved this for Claude by issuing a static client ID
+> Allo already solved this for Claude by issuing a static client ID
 > (`b82803e6-…`, empty secret). **Grok needs the same treatment**: either
 > implement dynamic client registration, or issue a dedicated Grok `client_id`.
-> See [Required Allô backend changes](#required-allô-backend-changes).
+> See [Required Allo backend changes](#required-allo-backend-changes).
 
 ### API key fallback
 
-Allô also accepts a workspace API key as a plain `Authorization` header. This is
-how Allô documents Claude Code, Cursor, and Codex today. It is a legitimate
+Allo also accepts a workspace API key as a plain `Authorization` header. This is
+how Allo documents Claude Code, Cursor, and Codex today. It is a legitimate
 fallback if OAuth isn't available to you yet, but **this plugin deliberately does
 not ship it**, because it would mean committing a credential to a shared config
 file.
 
 If you must use a key while OAuth client registration is pending, configure it in
 your own machine's Grok MCP settings (`/mcps`) rather than in this repository, and
-never commit it. Generate and revoke keys in **Allô → Settings → API**; revoking a
+never commit it. Generate and revoke keys in **Allo → Settings → API**; revoking a
 key immediately disconnects every client using it.
 
 ## Permissions
 
-Access is scoped by your Allô workspace. The authorization server advertises 22
+Access is scoped by your Allo workspace. The authorization server advertises 22
 scopes; the ones this plugin exercises:
 
 | Capability | Scope |
@@ -341,7 +341,7 @@ Phone systems touch customers. The skills encode explicit rules:
   confirm → execute → report what actually happened, including failures.
 - **Reversible before destructive.** Asked to "remove" a receptionist knowledge
   source, Grok offers to disable it rather than silently deleting it.
-- **No invented data.** No results means no results. Metrics Allô doesn't return
+- **No invented data.** No results means no results. Metrics Allo doesn't return
   are reported as unavailable, never estimated.
 - **No secrets, ever.** API keys, tokens, and authorization headers are never
   printed, echoed, or logged.
@@ -355,13 +355,13 @@ Phone systems touch customers. The skills encode explicit rules:
 - **One network endpoint**, declared and auditable: `https://mcp.withallo.com/mcp`
   over TLS. A test asserts nothing else is added.
 - **No telemetry.** The plugin collects nothing. Conversation data flows between
-  Grok and Allô only.
+  Grok and Allo only.
 - **Pinned distribution.** Marketplace installs pin a full 40-character commit
   SHA, which Grok re-verifies after cloning, so a force-push cannot silently ship
   new code to installed users.
-- **Least privilege.** Grant the narrowest Allô scopes that cover your use.
+- **Least privilege.** Grant the narrowest Allo scopes that cover your use.
 
-Reporting a vulnerability: contact Allô via [help.withallo.com](https://help.withallo.com).
+Reporting a vulnerability: contact Allo via [help.withallo.com](https://help.withallo.com).
 
 ## Development
 
@@ -389,7 +389,7 @@ commands/                  /allo-briefing, /allo-followups, /allo-report
 assets/logo.svg
 tests/
   allo_registry.py         Verified tool/enum/limit registry — source of truth
-  mock_mcp.py              In-process Allô MCP mock (SMS is always dry-run)
+  mock_mcp.py              In-process Allo MCP mock (SMS is always dry-run)
   test_structure.py        Manifest, MCP config, skills, secrets
   test_workflows.py        Workflow + safety-contract tests
   live_check.py            Live connectivity, OAuth discovery, tool discovery
@@ -452,8 +452,8 @@ Then, inside Grok Build:
 
 ```
 /plugins      confirm "allo" is loaded
-/skills       confirm the four Allô skills are discovered
-/mcps         confirm the Allô MCP connects and authenticates
+/skills       confirm the four Allo skills are discovered
+/mcps         confirm the Allo MCP connects and authenticates
 ```
 
 ## Distribution
@@ -470,7 +470,7 @@ bumping the SHA.
 
 ### Submitting
 
-1. Push this repository to a public URL under the **official Allô org** — not a
+1. Push this repository to a public URL under the **official Allo org** — not a
    personal account. xAI's review guidance calls out personal-account sources for
    branded plugins as a likely-impersonation signal and the single biggest cause
    of review delay.
@@ -516,8 +516,8 @@ Restart Grok Build, then check `/plugins`. Confirm the clone landed in
 `~/.grok/plugins/` or `./.grok/plugins/` and that `.grok-plugin/plugin.json`
 exists at its root. Run `make test` against the checkout.
 
-**Grok doesn't use Allô when I ask about calls**
-Check `/skills` lists the four Allô skills. Naming Allô explicitly ("in Allô,
+**Grok doesn't use Allo when I ask about calls**
+Check `/skills` lists the four Allo skills. Naming Allo explicitly ("in Allo,
 show me…") reliably triggers them. If the skills aren't listed, the frontmatter
 didn't parse — `make test` catches that.
 
@@ -525,10 +525,10 @@ didn't parse — `make test` catches that.
 Run `python3 tests/live_check.py`. If OAuth discovery passes but Grok still
 can't connect, you're most likely hitting the dynamic client registration gap
 described in [Authentication](#authentication) — Grok has no `client_id` to use.
-That needs the Allô-side change, not a config fix.
+That needs the Allo-side change, not a config fix.
 
 **"Authorization error" on one specific action**
-Your connection lacks that scope. Ask Grok "what can I do in Allô?" — it reads
+Your connection lacks that scope. Ask Grok "what can I do in Allo?" — it reads
 your granted scopes from `allo_get_me`. Reconnect the plugin to grant more, or
 have a workspace admin adjust your permissions.
 
@@ -537,7 +537,7 @@ Keyword terms are AND'd with prefix matching, so extra words narrow hard. Try on
 distinctive term. Also confirm the date range — Grok states the range it used.
 
 **"Missed calls" numbers look off**
-Allô exposes no `MISSED` filter. Grok uses inbound calls that went to voicemail
+Allo exposes no `MISSED` filter. Grok uses inbound calls that went to voicemail
 as the closest supported proxy and tells you so. If you define missed differently,
 say so and Grok will filter accordingly.
 
@@ -550,7 +550,7 @@ deliberately stops short.
 Conversions in outbound analytics are defined by the tag you choose. Tell Grok
 which tag means "converted" (e.g. `meeting_booked`).
 
-## Required Allô backend changes
+## Required Allo backend changes
 
 Verified against production on 2026-09-11 with `tests/live_check.py`.
 
@@ -583,14 +583,14 @@ Verified against production on 2026-09-11 with `tests/live_check.py`.
 Nothing else is required. The MCP server, tools, scopes, and rate limits are
 already production-ready and need no changes for this plugin.
 
-## Required Allô website changes
+## Required Allo website changes
 
 None are required to ship. Recommended:
 
 1. Add Grok to [withallo.com/mcp](https://www.withallo.com/mcp) alongside the
    existing Claude, Cursor, and Codex setup instructions — and cover **both**
    routes: the grok.com custom connector (for the chat app, which is where most
-   Allô users are) and this plugin (for Grok Build).
+   Allo users are) and this plugin (for Grok Build).
 2. Publish the Grok OAuth `client_id` there once issued (item 1b above).
 3. Add a Help Center article for the Grok plugin — install, connect, first
    prompts.
@@ -606,7 +606,7 @@ duplicate entries, and green CI.
 
 This plugin is built to pass: no hooks, no scripts, no code execution, one
 declared endpoint, no credentials, brand-scoped keywords. The two things that
-need your action are pushing to the official Allô org and stating the license.
+need your action are pushing to the official Allo org and stating the license.
 
 There is no separate xAI approval for the MCP server itself, and no review
 required for direct or private distribution.
@@ -618,13 +618,13 @@ required for direct or private distribution.
 - **Plugins are Grok Build only.** There is no way to package skills for the
   Grok chat app or Grok Bot — those surfaces take a raw MCP connector, so the
   orchestration and safety guidance in `skills/` doesn't travel with it. On
-  those surfaces Grok gets Allô's tools but not this repo's judgment about how
+  those surfaces Grok gets Allo's tools but not this repo's judgment about how
   to use them.
 - The catalog is a single GitHub repo gated by PR review — no self-serve
   publishing, and updates ship at the speed of a merge.
 - Remote sources pin one commit, so every update is a catalog PR.
-- No per-tool permission UI: connecting the MCP grants everything your Allô
-  scopes allow. Tool-level control has to come from Allô's scopes.
+- No per-tool permission UI: connecting the MCP grants everything your Allo
+  scopes allow. Tool-level control has to come from Allo's scopes.
 - Skills are advisory. They shape Grok's behavior strongly but are not an
   enforcement layer — a confirmation rule is a very good instruction, not a
   hard gate. Anything that must never happen should be enforced by scope.
@@ -638,18 +638,18 @@ required for direct or private distribution.
 - Conversion metrics depend on your tagging discipline.
 - Call flows can be saved as a draft but never published from Grok — publishing
   requires a signed-in user opening the returned confirmation link. That's an
-  intentional Allô safeguard.
-- Analytics cover what Allô measures. Revenue and pipeline metrics live in your
+  intentional Allo safeguard.
+- Analytics cover what Allo measures. Revenue and pipeline metrics live in your
   CRM, not here.
 
 ## Links
 
-- Allô — https://www.withallo.com
-- Allô MCP documentation — https://www.withallo.com/mcp
-- Allô Help Center — https://help.withallo.com
+- Allo — https://www.withallo.com
+- Allo MCP documentation — https://www.withallo.com/mcp
+- Allo Help Center — https://help.withallo.com
 - xAI plugin documentation — https://docs.x.ai/build/features/skills-plugins-marketplaces
 - xAI plugin marketplace — https://github.com/xai-org/plugin-marketplace
 
 ## License
 
-Proprietary. © Allô. See [LICENSE](LICENSE).
+Proprietary. © Allo. See [LICENSE](LICENSE).

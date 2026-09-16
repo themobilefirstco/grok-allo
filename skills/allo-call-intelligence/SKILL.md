@@ -1,18 +1,18 @@
 ---
 name: allo-call-intelligence
 description: >-
-  Deep analysis of Allô calls, transcripts, and SMS. Use when the user wants to
+  Deep analysis of Allo calls, transcripts, and SMS. Use when the user wants to
   find specific conversations, understand what was said on a call, surface
   objections or themes across calls, identify frustrated customers or warm leads,
   find calls needing follow-up, review a contact's history, or tag a set of calls.
   Triggers on "what did they say", "find calls where", "objections", "frustrated
   customers", "needs follow-up", "our last call with", "summarize calls with".
 metadata:
-  author: Allô
+  author: Allo
   short-description: Search, read, and reason over call transcripts and SMS.
 ---
 
-# Allô — call intelligence
+# Allo — call intelligence
 
 Turning raw call data into answers. Read the `allo` skill first for discovery,
 safety, and confirmation rules; this skill covers the analysis craft.
@@ -115,7 +115,7 @@ transcript, show the user which calls and why before applying it.
 
 ## Notes, threads, and conversation state
 
-Where the workspace's scopes allow it, findings can be written back into Allô
+Where the workspace's scopes allow it, findings can be written back into Allo
 rather than left in chat:
 
 - Conversation and contact **notes** record a finding on the record itself.

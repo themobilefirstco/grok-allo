@@ -1,7 +1,7 @@
 {
   "name": "allo",
   "version": "1.0.0",
-  "description": "Allô phone system for Cursor and Grok Bot — calls, SMS, analytics, and AI receptionist.",
+  "description": "Allo phone system for Cursor and Grok Bot — calls, SMS, analytics, and AI receptionist.",
   "author": {
     "name": "The Mobile-First Company",
     "email": "help@withallo.com"

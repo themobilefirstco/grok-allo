@@ -1,4 +1,4 @@
-"""In-process mock of the Allô MCP server.
+"""In-process mock of the Allo MCP server.
 
 Lets the workflow tests exercise the orchestrations the skills describe without
 touching the production server. Two guarantees make it useful rather than
@@ -135,7 +135,7 @@ VOICES = [
 
 
 class MockAlloMcp:
-    """A callable fake of the Allô MCP tool surface."""
+    """A callable fake of the Allo MCP tool surface."""
 
     def __init__(self, scopes=None, fail_with=None):
         # `scopes=None` means "everything"; pass a set to simulate a restricted

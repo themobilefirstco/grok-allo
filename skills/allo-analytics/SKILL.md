@@ -1,18 +1,18 @@
 ---
 name: allo-analytics
 description: >-
-  Team and outbound phone performance reporting from Allô. Use when the user asks
+  Team and outbound phone performance reporting from Allo. Use when the user asks
   about connect rates, answer rates, call volume, talk time, outbound funnel,
   conversions, rep leaderboards, best times to call, or week-over-week/period
   comparisons. Triggers on "connect rate", "answer rate", "who's the top rep",
   "team performance", "outbound performance", "call volume", "how did we do this
   week", "best time to call".
 metadata:
-  author: Allô
+  author: Allo
   short-description: Team KPIs, outbound funnel, and rep performance reporting.
 ---
 
-# Allô — analytics
+# Allo — analytics
 
 Two tools answer nearly every performance question. Reach for them **before**
 searching conversations — they aggregate server-side, and paging through calls to
@@ -40,8 +40,8 @@ Both require `date_from` and `date_to` (YYYY-MM-DD).
    decides what counts as a CONVERSION (e.g. `["meeting_booked"]`). There is no
    universal conversion metric. If the user hasn't named one, either ask which
    tag means "converted" for them, or state the tag you used.
-4. **Report only what Allô returns.** Revenue, close rate, pipeline, and cost per
-   lead are not Allô metrics. If asked, say so and offer the closest real one.
+4. **Report only what Allo returns.** Revenue, close rate, pipeline, and cost per
+   lead are not Allo metrics. If asked, say so and offer the closest real one.
    Never derive a confident business metric from data that doesn't support it.
 
 ## Picking the tool

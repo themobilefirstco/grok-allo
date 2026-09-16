@@ -1,9 +1,9 @@
 ---
-description: Find Allô calls that still need a follow-up
+description: Find Allo calls that still need a follow-up
 argument-hint: "[date range, e.g. yesterday | this week]"
 ---
 
-Find the calls in my Allô workspace that still need a follow-up for:
+Find the calls in my Allo workspace that still need a follow-up for:
 **$ARGUMENTS** (default to the last 7 days if empty).
 
 Use the `allo` and `allo-call-intelligence` skills. This is **read-only** —

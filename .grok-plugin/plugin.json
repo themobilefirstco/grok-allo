@@ -1,7 +1,7 @@
 {
   "name": "allo",
   "version": "1.0.0",
-  "description": "Allô phone system for Grok — calls, SMS, analytics, and AI receptionist.",
+  "description": "Allo phone system for Grok — calls, SMS, analytics, and AI receptionist.",
   "author": {
     "name": "The Mobile-First Company",
     "url": "https://www.withallo.com"
@@ -11,7 +11,7 @@
   "license": "Proprietary",
   "keywords": [
     "allo",
-    "allô",
+    "allo",
     "withallo",
     "allo phone",
     "allo calls",

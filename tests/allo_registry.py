@@ -1,4 +1,4 @@
-"""Verified Allô MCP tool registry.
+"""Verified Allo MCP tool registry.
 
 This is the source of truth the tests validate the plugin's skills against.
 
