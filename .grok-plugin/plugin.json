@@ -1,7 +1,7 @@
 {
   "name": "allo",
   "version": "1.0.0",
-  "description": "Allo phone system for Grok — calls, SMS, analytics, and AI receptionist.",
+  "description": "Give your agent a business phone line. Allo lets Grok set up an AI receptionist that answers your calls. It can also send and read texts, manage contacts, and know everything about every call.",
   "author": {
     "name": "The Mobile-First Company",
     "url": "https://www.withallo.com"
