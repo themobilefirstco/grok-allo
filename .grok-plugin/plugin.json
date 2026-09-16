@@ -1,9 +1,9 @@
 {
   "name": "allo",
   "version": "1.0.0",
-  "description": "Run your Allô business phone system directly from Grok. Search calls and transcripts, analyze team and outbound performance, tag calls, send SMS, and manage your AI receptionist through the hosted Allô MCP. Sign in with your Allô workspace on first connect.",
+  "description": "Allô phone system for Grok — calls, SMS, analytics, and AI receptionist.",
   "author": {
-    "name": "Allô",
+    "name": "The Mobile-First Company",
     "url": "https://www.withallo.com"
   },
   "homepage": "https://www.withallo.com",
@@ -19,5 +19,5 @@
     "allo receptionist",
     "allo business phone"
   ],
-  "logo": "assets/logo.svg"
+  "logo": "assets/logo.png"
 }

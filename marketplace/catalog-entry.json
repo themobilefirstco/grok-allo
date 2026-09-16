@@ -1,6 +1,6 @@
 {
   "name": "allo",
-  "description": "Run your Allô business phone system from Grok. Search calls and transcripts, analyze team and outbound performance, tag calls, send SMS, and manage your AI receptionist through the hosted Allô MCP.",
+  "description": "Allô phone system for Grok — calls, SMS, analytics, and AI receptionist.",
   "category": "productivity",
   "source": {
     "source": "url",
@@ -23,7 +23,7 @@
     "help.withallo.com"
   ],
   "author": {
-    "name": "Allô",
+    "name": "The Mobile-First Company",
     "url": "https://www.withallo.com"
   }
 }
