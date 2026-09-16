@@ -1,0 +1,9 @@
+# Local tooling config, not part of the distributed plugin
+.claude/
+
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+.env.*
+*.local

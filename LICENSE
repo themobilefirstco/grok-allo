@@ -1,0 +1,30 @@
+Copyright © Allô. All rights reserved.
+
+This software (the "Plugin") is made available by Allô for the purpose of
+connecting Grok to the Allô platform.
+
+PERMITTED USE
+
+You may install, use, and redistribute the Plugin unmodified for the purpose of
+connecting a Grok client to the Allô platform. You may create and use modified
+copies internally.
+
+RESTRICTIONS
+
+You may not redistribute modified copies of the Plugin, or distribute the Plugin
+under a different name or branding, without prior written permission from Allô.
+You may not use the Allô name, logo, or trademarks except to identify the Plugin
+as an Allô integration.
+
+Use of the Allô platform and API through this Plugin is governed by your
+agreement with Allô.
+
+NO WARRANTY
+
+THE PLUGIN IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL ALLÔ BE LIABLE FOR ANY
+CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH
+THE PLUGIN OR ITS USE.
+
+Contact: https://help.withallo.com

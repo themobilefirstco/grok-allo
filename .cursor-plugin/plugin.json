@@ -1,0 +1,24 @@
+{
+  "name": "allo",
+  "version": "1.0.0",
+  "description": "Run your All\u00f4 business phone system from Cursor and Grok Bot. Search calls and transcripts, analyze team and outbound performance, tag calls, send SMS, and manage your AI receptionist through the hosted All\u00f4 MCP. Sign in with your All\u00f4 workspace on first connect.",
+  "author": {
+    "name": "All\u00f4",
+    "email": "help@withallo.com"
+  },
+  "homepage": "https://www.withallo.com",
+  "repository": "https://github.com/withallo/grok-allo",
+  "license": "Proprietary",
+  "keywords": [
+    "allo",
+    "all\u00f4",
+    "withallo",
+    "allo phone",
+    "allo calls",
+    "allo mcp",
+    "allo receptionist",
+    "allo business phone"
+  ],
+  "logo": "assets/logo.svg",
+  "mcpServers": "./mcp.json"
+}

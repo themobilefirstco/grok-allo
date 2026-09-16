@@ -1,0 +1,29 @@
+{
+  "name": "allo",
+  "description": "Run your Allô business phone system from Grok. Search calls and transcripts, analyze team and outbound performance, tag calls, send SMS, and manage your AI receptionist through the hosted Allô MCP.",
+  "category": "productivity",
+  "source": {
+    "source": "url",
+    "url": "https://github.com/withallo/grok-allo.git",
+    "sha": "0000000000000000000000000000000000000000"
+  },
+  "homepage": "https://www.withallo.com",
+  "keywords": [
+    "allo",
+    "allô",
+    "withallo",
+    "allo phone",
+    "allo calls",
+    "allo mcp",
+    "allo receptionist"
+  ],
+  "domains": [
+    "withallo.com",
+    "mcp.withallo.com",
+    "help.withallo.com"
+  ],
+  "author": {
+    "name": "Allô",
+    "url": "https://www.withallo.com"
+  }
+}

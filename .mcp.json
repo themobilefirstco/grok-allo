@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "allo": {
+      "type": "http",
+      "url": "https://mcp.withallo.com/mcp"
+    }
+  }
+}

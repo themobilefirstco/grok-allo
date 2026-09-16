@@ -1,0 +1,32 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Catch MCP-side drift (renamed tools, changed auth) before users do.
+    - cron: "0 7 * * 1"
+
+jobs:
+  offline:
+    name: Structure, workflows, and safety contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: make test
+
+  live:
+    name: Live MCP connectivity and OAuth discovery
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # No credentials needed: this asserts the server is reachable and still
+      # advertises the OAuth discovery chain Grok depends on.
+      - run: make live

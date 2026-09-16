@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "allo": {
+      "url": "https://mcp.withallo.com/mcp",
+      "auth": {
+        "CLIENT_ID": "e3d79ef3-9e84-452c-9269-df9ed022753a"
+      }
+    }
+  }
+}
