@@ -174,7 +174,7 @@ will prompt you to sign in to Allo (see [Authentication](#authentication)).
 ### Direct install from this repository
 
 ```bash
-git clone https://github.com/withallo/grok-allo.git ~/.grok/plugins/allo
+git clone https://github.com/themobilefirstco/grok-allo.git ~/.grok/plugins/allo
 ```
 
 Then restart Grok Build and confirm with `/plugins`.
@@ -368,7 +368,7 @@ Reporting a vulnerability: contact Allo via [help.withallo.com](https://help.wit
 No build step, no dependencies. Python 3.9+ for the tests; that's it.
 
 ```bash
-git clone https://github.com/withallo/grok-allo.git
+git clone https://github.com/themobilefirstco/grok-allo.git
 cd grok-allo
 make check
 ```
@@ -479,7 +479,7 @@ bumping the SHA.
 
 2. Get the commit to pin:
    ```bash
-   git ls-remote https://github.com/withallo/grok-allo.git HEAD
+   git ls-remote https://github.com/themobilefirstco/grok-allo.git HEAD
    ```
 
 3. Fork `xai-org/plugin-marketplace`, and append the entry from

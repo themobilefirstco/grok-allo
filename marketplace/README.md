@@ -25,7 +25,7 @@ to paste once you replace the placeholder SHA.
 **1. Get the commit SHA to pin.**
 
 ```bash
-git ls-remote https://github.com/withallo/grok-allo.git HEAD
+git ls-remote https://github.com/themobilefirstco/grok-allo.git HEAD
 ```
 
 Must be the full 40-character lowercase SHA. The validator rejects branches,
