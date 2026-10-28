@@ -216,6 +216,7 @@ LIMITS = {
     "batch_get_max": 100,
     "dialing_queue_max": 1000,
     "pinned_conversations_max": 10,
+    "inboxes_per_user_max": 50,
     "read_per_second": 20,
     "write_per_second": 5,
 }

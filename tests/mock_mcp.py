@@ -12,6 +12,8 @@ decorative:
 Fixture data is small, synthetic, and uses 555 numbers reserved for fiction.
 """
 
+import copy
+
 from allo_registry import ENUMS, LIMITS, TOOLS, VERIFIED_PARAM_TOOLS
 
 
@@ -55,6 +57,7 @@ ITEMS = [
         "contact_number": "+15005559001",
         "user_id": "usr-001",
         "allo_number": "+15005550101",
+        "menu_path": [{"node_id": "node-1", "digit": "1"}],
         "unread": True,
         "tags": [],
         "summary": "Caller asked about pricing for a 12-seat plan, left a voicemail.",
@@ -69,6 +72,7 @@ ITEMS = [
         "contact_number": "+15005559002",
         "user_id": "usr-002",
         "allo_number": "+15005550101",
+        "menu_path": [{"node_id": "node-1", "digit": "2"}, {"node_id": "node-4", "digit": "1"}],
         "unread": True,
         "tags": [],
         "summary": "Existing customer, wants to cancel, frustrated about billing.",
@@ -135,31 +139,86 @@ LINE_ACCESS = {
     "usr-003": {"+15005550101", "+15005550102"},
 }
 
-# The published phone menu on the Sales line.
+# The published phone menu on the Sales line: 1 = Sales FR, 2 = Support FR,
+# which opens a second menu where 1 = Billing. Shapes mirror api-allo: every
+# option carries a ready MENU_BRANCH `condition` whose single branch is its path.
+def _menu_option(path, digits, label):
+    return {
+        "node_id": path[-1]["node_id"],
+        "path": path,
+        "digits": digits,
+        "label": label,
+        "condition": {"type": "MENU_BRANCH", "branches": [path], "include_no_choice": False},
+    }
+
+
 MENU_OPTIONS = {
     "+15005550101": [
-        {"node_id": "node-2", "path": [{"node_id": "node-1", "digit": "1"}], "digits": "1", "label": "Sales FR"},
-        {"node_id": "node-3", "path": [{"node_id": "node-1", "digit": "2"}], "digits": "2", "label": "Support FR"},
+        _menu_option([{"node_id": "node-1", "digit": "1"}], "1", "Sales FR"),
+        _menu_option([{"node_id": "node-1", "digit": "2"}], "2", "Support FR"),
+        _menu_option(
+            [{"node_id": "node-1", "digit": "2"}, {"node_id": "node-4", "digit": "1"}],
+            "2>1",
+            "Billing",
+        ),
     ],
     "+15005550102": [],
 }
 
+# Suggestions carry a ready `source` (one line, conditions filled in), and no emoji.
 INBOX_SUGGESTIONS = [
-    {"name": "Sales", "emoji": "💼", "sources": [{"allo_number": "+15005550101", "conditions": []}]},
-    {"name": "Support", "emoji": "🛟", "sources": [{"allo_number": "+15005550102", "conditions": []}]},
     {
+        "allo_number": "+15005550101",
+        "name": "Sales",
+        "description": "Everything on the Sales line",
+        "branch": None,
+        "answered": 3, "rung": 4, "texted": 1, "score": 90,
+        "source": {"allo_number": "+15005550101", "conditions": []},
+    },
+    {
+        "allo_number": "+15005550102",
+        "name": "Support",
+        "description": "Everything on the Support line",
+        "branch": None,
+        "answered": 1, "rung": 1, "texted": 0, "score": 40,
+        "source": {"allo_number": "+15005550102", "conditions": []},
+    },
+    {
+        "allo_number": "+15005550101",
         "name": "Sales FR",
-        "emoji": "🇫🇷",
-        "sources": [
-            {
-                "allo_number": "+15005550101",
-                "conditions": [
-                    {"type": "MENU_OPTION", "node_id": "node-2", "digits": ["1"], "include_no_choice": False}
-                ],
-            }
-        ],
+        "description": "Callers who pressed 1 on Sales",
+        "branch": [{"node_id": "node-1", "digit": "1"}],
+        "answered": 1, "rung": 1, "texted": 0, "score": 70,
+        "source": {
+            "allo_number": "+15005550101",
+            "conditions": [dict(MENU_OPTIONS["+15005550101"][0]["condition"])],
+        },
     },
 ]
+
+INBOX_FILTER_TYPES = (
+    "INBOUND_CALL",
+    "OUTBOUND_CALL",
+    "TRANSFERRED",
+    "INBOUND_TEXT_MESSAGE",
+    "OUTBOUND_TEXT_MESSAGE",
+    "VOICEMAIL",
+    "AI_ASSISTANT",
+)
+INBOX_FILTER_KEYS = {"types", "user_ids", "contact_ids", "contact_list_ids", "unread"}
+
+
+def _activity_types(item):
+    """The inbox filter types one conversation item counts as."""
+    if item["type"] == "SMS":
+        return {f"{item['direction']}_TEXT_MESSAGE"}
+    kinds = {f"{item['direction']}_CALL"}
+    if item["result"] == "VOICEMAIL":
+        kinds.add("VOICEMAIL")
+    if item["result"] == "TRANSFERRED":
+        kinds.add("TRANSFERRED")
+    return kinds
+
 
 VOICES = [
     {"id": "voice-aurora", "name": "Aurora", "style": "warm"},
@@ -170,12 +229,16 @@ VOICES = [
 class MockAlloMcp:
     """A callable fake of the Allo MCP tool surface."""
 
-    def __init__(self, scopes=None, fail_with=None, caller="usr-003"):
+    def __init__(self, scopes=None, fail_with=None, caller="usr-003", read_lag=False):
         # `scopes=None` means "everything"; pass a set to simulate a restricted
         # connection. `fail_with` forces an error for error-handling tests.
         # `caller` is the user the connection acts as (default: the admin).
+        # `read_lag` makes a fresh inbox miss its first lookup, as a replica would.
         self.scopes = scopes
         self.caller = caller
+        self.read_lag = read_lag
+        self.unsettled = set()
+        self._next_inbox = 0
         self.inboxes = []          # created inboxes, each with its owner
         self.pins = []             # [(allo_number, contact_number)] for the caller
         self.fail_with = fail_with or {}
@@ -480,16 +543,64 @@ class MockAlloMcp:
     def _check_sources(self, owner, sources):
         if not sources:
             raise MockMcpError("INVALID_INBOX_SOURCE", "an inbox needs at least one source")
+        lines = [s.get("allo_number") for s in sources]
+        if len(set(lines)) != len(lines):
+            raise MockMcpError("INVALID_INBOX_SOURCE", "one source per line")
         for source in sources:
             line = source.get("allo_number")
             if line not in LINE_ACCESS[owner]:
                 raise MockMcpError("ALLO_NUMBER_FORBIDDEN", f"{owner} cannot access {line}")
-            known = {o["node_id"] for o in MENU_OPTIONS.get(line, [])}
-            for cond in source.get("conditions", []):
-                if cond.get("type") == "MENU_OPTION" and cond.get("node_id") not in known:
-                    raise MockMcpError("INVALID_INBOX_SOURCE", f"unknown menu node {cond.get('node_id')}")
+            known_steps = {
+                (step["node_id"], step["digit"])
+                for option in MENU_OPTIONS.get(line, [])
+                for step in option["path"]
+            }
+            conditions = source.get("conditions") or []
+            if sum(1 for c in conditions if c.get("type") == "MENU_BRANCH") > 1:
+                raise MockMcpError(
+                    "INVALID_INBOX_SOURCE",
+                    "at most one MENU_BRANCH per source: concatenate the branches instead",
+                )
+            option_nodes = []
+            branch_nodes = set()
+            for cond in conditions:
+                if cond.get("type") == "MENU_OPTION":
+                    node = cond.get("node_id")
+                    if node not in {n for n, _ in known_steps}:
+                        raise MockMcpError("INVALID_INBOX_SOURCE", f"unknown menu node {node}")
+                    option_nodes.append(node)
+                elif cond.get("type") == "MENU_BRANCH":
+                    branches = cond.get("branches") or []
+                    if not branches:
+                        raise MockMcpError("INVALID_INBOX_SOURCE", "MENU_BRANCH needs branches")
+                    for branch in branches:
+                        for step in branch:
+                            if (step.get("node_id"), step.get("digit")) not in known_steps:
+                                raise MockMcpError(
+                                    "INVALID_INBOX_SOURCE", f"unknown menu step {step}"
+                                )
+                            branch_nodes.add(step["node_id"])
+                else:
+                    raise MockMcpError("INVALID_INBOX_SOURCE", f"unknown condition {cond.get('type')}")
+            if len(set(option_nodes)) != len(option_nodes) or set(option_nodes) & branch_nodes:
+                raise MockMcpError("INVALID_INBOX_SOURCE", "a menu node appears in two conditions")
+
+    def _check_filters(self, filters):
+        if not filters:
+            return
+        if set(filters) - INBOX_FILTER_KEYS:
+            raise MockMcpError("INVALID_INBOX_FILTERS", f"unknown filter keys {sorted(set(filters) - INBOX_FILTER_KEYS)}")
+        if set(filters.get("types") or []) - set(INBOX_FILTER_TYPES):
+            raise MockMcpError("INVALID_INBOX_FILTERS", "unknown activity type")
+        user_ids = filters.get("user_ids") or []
+        if len(user_ids) > 50 or set(user_ids) - set(LINE_ACCESS):
+            raise MockMcpError("INVALID_INBOX_FILTERS", "unknown or too many user ids")
 
     def _find_inbox(self, inbox_id, owner):
+        if inbox_id in self.unsettled:
+            # Read-after-create lag: the first lookup of a fresh inbox misses once.
+            self.unsettled.discard(inbox_id)
+            raise MockMcpError("INBOX_NOT_FOUND", f"no inbox {inbox_id}")
         inbox = next((i for i in self.inboxes if i["id"] == inbox_id), None)
         # Inboxes are personal: someone else's inbox is indistinguishable from a missing one.
         if inbox is None or inbox["owner"] != owner:
@@ -502,31 +613,38 @@ class MockAlloMcp:
         return {"data": [i for i in self.inboxes if i["owner"] == owner]}
 
     def _allo_get_inbox_suggestions(self):
+        # The caller's own suggestions only: there is no user_id.
         self._require("INBOXES_READ")
-        return {"data": [dict(s) for s in INBOX_SUGGESTIONS]}
+        return {"data": copy.deepcopy(INBOX_SUGGESTIONS)}
 
     def _allo_list_menu_options(self, number):
         self._require("INBOXES_READ")
         if number not in MENU_OPTIONS:
             raise MockMcpError("NOT_FOUND", f"unknown line {number}")
-        return {"data": MENU_OPTIONS[number]}
+        return {"data": copy.deepcopy(MENU_OPTIONS[number])}
 
     def _allo_create_inbox(self, name, sources, emoji=None, filters=None, user_id=None):
         self._require("INBOXES_WRITE")
         if not name or not name.strip():
             raise MockMcpError("INBOX_NAME_REQUIRED", "name is required")
         owner = self._inbox_owner(user_id)
+        if sum(1 for i in self.inboxes if i["owner"] == owner) >= LIMITS["inboxes_per_user_max"]:
+            raise MockMcpError("INBOX_LIMIT_REACHED", "This user already has the maximum of 50 inboxes.")
         self._check_sources(owner, sources)
+        self._check_filters(filters)
+        self._next_inbox += 1
         inbox = {
-            "id": f"inb_{len(self.inboxes) + 1:03d}",
+            "id": f"inb_{self._next_inbox:03d}",
             "name": name,
             "emoji": emoji,
-            "sources": sources,
+            "sources": copy.deepcopy(sources),
             "filters": filters or {},
             "notifications_muted": False,
             "owner": owner,
         }
         self.inboxes.append(inbox)
+        if self.read_lag:
+            self.unsettled.add(inbox["id"])
         return {"data": inbox}
 
     def _allo_update_inbox(self, inbox_id, user_id=None, **changes):
@@ -535,6 +653,9 @@ class MockAlloMcp:
         inbox = self._find_inbox(inbox_id, owner)
         if "sources" in changes:
             self._check_sources(owner, changes["sources"])
+        if "filters" in changes:
+            self._check_filters(changes["filters"])
+            changes["filters"] = changes["filters"] or {}
         inbox.update(changes)
         return {"data": inbox}
 
@@ -545,25 +666,56 @@ class MockAlloMcp:
         self.inboxes.remove(inbox)
         return {"data": {"deleted": inbox_id}}
 
+    @staticmethod
+    def _source_matches(source, item):
+        if item["allo_number"] != source["allo_number"]:
+            return False
+        conditions = source.get("conditions") or []
+        if not conditions:
+            return True
+        path = [(s["node_id"], s["digit"]) for s in item.get("menu_path") or []]
+        for cond in conditions:
+            if cond["type"] == "MENU_BRANCH":
+                for branch in cond["branches"]:
+                    steps = [(s["node_id"], s["digit"]) for s in branch]
+                    if path[: len(steps)] == steps:
+                        return True
+            elif cond["type"] == "MENU_OPTION":
+                if any(n == cond["node_id"] and d in cond.get("digits", []) for n, d in path):
+                    return True
+        return False
+
+    @staticmethod
+    def _filters_match(filters, items):
+        if filters.get("types") and not any(
+            _activity_types(i) & set(filters["types"]) for i in items
+        ):
+            return False
+        if filters.get("user_ids") and not any(i["user_id"] in filters["user_ids"] for i in items):
+            return False
+        if filters.get("unread") and not any(i["unread"] for i in items):
+            return False
+        return True
+
     def _allo_list_conversations(self, allo_number=None, inbox_id=None, pinned=None, **_):
         self._require("CONVERSATIONS_READ")
         if bool(allo_number) == bool(inbox_id):
             raise MockMcpError("INVALID_REQUEST", "provide exactly one of allo_number or inbox_id")
         if inbox_id:
             inbox = self._find_inbox(inbox_id, self.caller)
-            lines = {s["allo_number"] for s in inbox["sources"]}
+            items = [i for i in ITEMS if any(self._source_matches(s, i) for s in inbox["sources"])]
+            filters = inbox["filters"] or {}
         else:
-            lines = {allo_number}
-        rows = {}
-        for item in ITEMS:
-            if item["allo_number"] in lines:
-                key = (item["allo_number"], item["contact_number"])
-                rows.setdefault(key, {
-                    "contact_number": item["contact_number"],
-                    "allo_number": item["allo_number"],
-                    "pinned": key in self.pins,
-                })
-        data = list(rows.values())
+            items = [i for i in ITEMS if i["allo_number"] == allo_number]
+            filters = {}
+        groups = {}
+        for item in items:
+            groups.setdefault((item["allo_number"], item["contact_number"]), []).append(item)
+        data = [
+            {"contact_number": contact, "allo_number": line, "pinned": (line, contact) in self.pins}
+            for (line, contact), group in groups.items()
+            if self._filters_match(filters, group)
+        ]
         if pinned is not None:
             data = [r for r in data if r["pinned"] == pinned]
         return {"data": data, "pagination": {"total_count": len(data)}}
@@ -576,7 +728,7 @@ class MockAlloMcp:
         if len(self.pins) >= LIMITS["pinned_conversations_max"]:
             raise MockMcpError(
                 "PIN_LIMIT_REACHED",
-                "You can pin up to 10 conversations. Unpin one to make room.",
+                "You already pinned the maximum of 10 conversations.",
             )
         self.pins.append(key)
         return {"data": {"pinned": True}}

@@ -44,34 +44,46 @@ Then pick the focused skill:
 ## Inboxes
 
 An inbox is a personal view of conversations: one or more lines, optionally
-narrowed to callers who took a given phone-menu branch. Inboxes belong to one
-person and show in that person's inbox switcher. Talk about them in business
-terms ("your Sales inbox", "callers who pressed 1"), never about sources, node
-ids or conditions.
+narrowed to callers who took given phone-menu branches, plus optional filters.
+Inboxes belong to one person and show in that person's inbox switcher. Talk
+about them in business terms ("your Sales inbox", "callers who pressed 1"),
+never about sources, node ids or conditions. A user can have at most 50.
 
-**"Set up my inboxes."** Start from `allo_get_inbox_suggestions`: it returns
-ready-made inboxes (one per line, one per menu branch) with their sources
-already filled in. Show the user the proposed list by name, let them drop,
-rename or merge entries, and **confirm the final list before creating
-anything**. Then call `allo_create_inbox` once per confirmed inbox, passing the
-suggestion's sources unchanged. Report what was created, and anything that
-failed.
+**"Set up my inboxes."** Start from `allo_get_inbox_suggestions`. Each
+suggestion has a name and a ready `source` (a line, with its menu conditions
+already filled in). Show the user the proposed list by name, let them drop or
+rename entries, and **confirm the final list before creating anything**. Then
+call `allo_create_inbox` once per confirmed inbox, with the suggestion's
+`source` as its only source, unchanged. Report what was created, and anything
+that failed.
 
 **Custom branches** ("only callers who pressed 1 on Website FR"). Find the line
 with `allo_list_numbers`, then read its published phone menu with
 `allo_list_menu_options`. Match the user's words to an option's `digits` and
-`label`, and build the source from that option's `node_id`. If no option
+`label`. Each option carries a ready `condition`; use it as is. If no option
 matches, or more than one does, show the options and ask. Never guess a branch.
+
+To combine several options on the same line ("1 or 2 on Website FR"), merge
+them into **one** condition: take the first option's `condition` and append
+the other options' `branches` to its `branches`. Never send two conditions for
+the same line's menu; Allo rejects that. Use one source per line.
 
 **Inboxes for a teammate** ("and one for Lucio"). Resolve the teammate with
 `allo_list_users` and pass their id as `user_id` on `allo_create_inbox`. Only
-admins and managers can do this. If the teammate can't access a line, the inbox
-can't include it: say which line, and offer to leave it out. When the name
-matches more than one person, ask which one.
+admins and managers can do this. Suggestions are the caller's own, so for a
+teammate build the source yourself: a whole line (empty `conditions`) or a
+condition from `allo_list_menu_options`. If the teammate can't access a line,
+the inbox can't include it: say which line, and offer to leave it out. When the
+name matches more than one person, ask which one.
 
 **"Show me my Sales inbox."** Call `allo_list_inboxes`, match the name, and pass
-its `inbox_id` to `allo_list_conversations` instead of `allo_number`. If no
-inbox matches, list the ones that exist rather than falling back to a line.
+its `inbox_id` to `allo_list_conversations` instead of `allo_number`. The result
+already applies the inbox's saved filters, so don't filter again. Each row
+carries its own `allo_number`: an inbox can span several lines, so to pin,
+reply or text from that list, use the row's `allo_number`, never a guess. If no
+inbox matches, list the ones that exist rather than falling back to a line. If
+an inbox you just created comes back as not found, retry once before telling
+the user.
 
 **Pin or unpin a customer.** `allo_pin_conversation` and
 `allo_unpin_conversation`, with the customer's number and the line. At most 10
@@ -82,6 +94,15 @@ unpin. Never unpin something on your own to make room.
 **Mute or unmute an inbox** ("mute Support"). `allo_update_inbox` with
 `notifications_muted`. Muting only silences notifications; the conversations
 still arrive.
+
+**When Allo says no:**
+
+- Inbox limit reached (50): say so and ask which inbox they no longer need.
+  Never delete one to make room.
+- Invalid filters: say which filter didn't work and offer to create the inbox
+  without it.
+- Invalid source: rebuild it from the suggestion or menu option as is; don't
+  hand-edit conditions.
 
 **Delete an inbox only when the user explicitly asks.** Never as cleanup, never
 to "start fresh" during setup. Before deleting, name the consequence: the inbox
