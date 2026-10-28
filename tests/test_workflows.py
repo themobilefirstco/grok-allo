@@ -655,6 +655,54 @@ class TestInboxWorkflow(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "INBOX_NAME_REQUIRED")
         self.assertEqual(self.mcp.call("allo_list_inboxes")["data"][0]["id"], inbox["id"])
 
+    def test_menu_conditions_on_a_line_without_a_menu_are_rejected(self):
+        # Support isn't routed by the engine: no menu, so no menu conditions.
+        borrowed = self._option(self.SALES, "1")["condition"]
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call(
+                "allo_create_inbox", name="Support 1", sources=[{"allo_number": self.SUPPORT, "conditions": [borrowed]}]
+            )
+        self.assertEqual(ctx.exception.code, "INVALID_INBOX_SOURCE")
+
+    OTHER_WS = "+15005550301"
+
+    def test_admin_sees_only_teammate_inboxes_in_a_managed_workspace(self):
+        mixed = self.mcp.seed_inbox("usr-001", "Mixed", [{"allo_number": self.SALES, "conditions": []}, {"allo_number": self.OTHER_WS, "conditions": []}])
+        outside = self.mcp.seed_inbox("usr-001", "Elsewhere", [{"allo_number": self.OTHER_WS, "conditions": []}])
+        names = {i["name"] for i in self.mcp.call("allo_list_inboxes", user_id="usr-001")["data"]}
+        self.assertEqual(names, {"Mixed"})
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call("allo_update_inbox", inbox_id=outside["id"], user_id="usr-001", notifications_muted=True)
+        self.assertEqual(ctx.exception.code, "INBOX_NOT_FOUND")
+        self.mcp.call("allo_update_inbox", inbox_id=mixed["id"], user_id="usr-001", notifications_muted=True)
+
+    def test_teammate_write_must_keep_a_managed_line(self):
+        mixed = self.mcp.seed_inbox("usr-001", "Mixed", [{"allo_number": self.SALES, "conditions": []}, {"allo_number": self.OTHER_WS, "conditions": []}])
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call(
+                "allo_update_inbox",
+                inbox_id=mixed["id"],
+                user_id="usr-001",
+                sources=[{"allo_number": self.OTHER_WS, "conditions": []}],
+            )
+        self.assertEqual(ctx.exception.code, "INVALID_INBOX_SOURCE")
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call(
+                "allo_create_inbox", name="Elsewhere", user_id="usr-001",
+                sources=[{"allo_number": self.OTHER_WS, "conditions": []}],
+            )
+        self.assertEqual(ctx.exception.code, "INVALID_INBOX_SOURCE")
+
+    def test_deleting_a_teammate_inbox_with_outside_lines_is_forbidden(self):
+        mixed = self.mcp.seed_inbox("usr-001", "Mixed", [{"allo_number": self.SALES, "conditions": []}, {"allo_number": self.OTHER_WS, "conditions": []}])
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call("allo_delete_inbox", inbox_id=mixed["id"], user_id="usr-001")
+        self.assertEqual(ctx.exception.code, "FORBIDDEN")
+        self.assertEqual(len(self.mcp.call("allo_list_inboxes", user_id="usr-001")["data"]), 1)
+        # Fully inside the managed workspace: the admin can delete it.
+        own_ws = self.mcp.seed_inbox("usr-001", "Sales", [{"allo_number": self.SALES, "conditions": []}])
+        self.assertTrue(self.mcp.call("allo_delete_inbox", inbox_id=own_ws["id"], user_id="usr-001")["deleted"])
+
     def test_skill_documents_the_inbox_rules(self):
         text = normalize(skill_text("allo"))
         self.assertIn("allo_get_inbox_suggestions", text)
@@ -672,6 +720,9 @@ class TestInboxWorkflow(unittest.TestCase):
         self.assertRegex(text, r"get the lines from `allo_list_numbers`")
         self.assertRegex(text, r"never change node_ids or digits")
         self.assertRegex(text, r"confirm the inbox by name and whose it is")
+        self.assertRegex(text, r"lines outside the user.s workspace")
+        self.assertRegex(text, r"teammate (delete|deletes) it")
+        self.assertRegex(text, r"tell the user plainly")
         self.assertIn("inbox_id", text)
         self.assertRegex(text, r"use the row's `allo_number`")
         self.assertRegex(text, r"already applies the inbox's saved filters")

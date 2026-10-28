@@ -134,10 +134,21 @@ AGENT = {
 
 # Lines each user can access, as the server's line-access rule would resolve it.
 LINE_ACCESS = {
-    "usr-001": {"+15005550101", "+15005550102"},
+    "usr-001": {"+15005550101", "+15005550102", "+15005550301"},
     "usr-002": {"+15005550101"},
     "usr-003": {"+15005550101", "+15005550102"},
 }
+
+# Which workspace each line belongs to. +15005550301 is a line usr-001 also
+# works in another workspace, which the admin below doesn't manage.
+LINE_WORKSPACE = {
+    "+15005550101": "ws-main",
+    "+15005550102": "ws-main",
+    "+15005550301": "ws-other",
+}
+
+# Workspaces each admin or manager manages.
+MANAGED_WORKSPACES = {"usr-003": {"ws-main"}}
 
 # The published phone menu on the Sales line: 1 = Sales FR, 2 = Support FR,
 # which opens a second menu where 1 = Billing. Shapes mirror api-allo: every
@@ -563,6 +574,10 @@ class MockAlloMcp:
                 for step in option["path"]
             }
             conditions = source.get("conditions") or []
+            if conditions and not MENU_OPTIONS.get(line):
+                raise MockMcpError(
+                    "INVALID_INBOX_SOURCE", f"{line} has no phone menu, so it takes no menu conditions"
+                )
             if sum(1 for c in conditions if c.get("type") == "MENU_BRANCH") > 1:
                 raise MockMcpError(
                     "INVALID_INBOX_SOURCE",
@@ -616,6 +631,36 @@ class MockAlloMcp:
             "unread": bool(filters.get("unread", False)),
         }
 
+    def _managed_lines(self, sources):
+        """The sources' lines that sit in a workspace the caller manages."""
+        managed = MANAGED_WORKSPACES.get(self.caller, set())
+        return {s["allo_number"] for s in sources if LINE_WORKSPACE.get(s["allo_number"]) in managed}
+
+    def _visible(self, inbox, owner):
+        # For a teammate, an admin only sees inboxes with a line in a workspace they manage.
+        return owner == self.caller or bool(self._managed_lines(inbox["sources"]))
+
+    def _check_teammate_write(self, owner, sources):
+        if owner != self.caller and not self._managed_lines(sources):
+            raise MockMcpError(
+                "INVALID_INBOX_SOURCE", "a teammate's inbox needs a line in a workspace you manage"
+            )
+
+    def seed_inbox(self, owner, name, sources):
+        """Test helper: an inbox the user made themselves, bypassing the caller's checks."""
+        self._next_inbox += 1
+        inbox = {
+            "id": f"inb_{self._next_inbox:03d}",
+            "name": name,
+            "emoji": None,
+            "sources": copy.deepcopy(sources),
+            "filters": self._normalize_filters(None),
+            "notifications_muted": False,
+        }
+        self.inboxes.append(inbox)
+        self.inbox_owners[inbox["id"]] = owner
+        return copy.deepcopy(inbox)
+
     def _find_inbox(self, inbox_id, owner):
         if inbox_id in self.unsettled:
             # Read-after-create lag: the first lookup of a fresh inbox misses once.
@@ -623,14 +668,20 @@ class MockAlloMcp:
             raise MockMcpError("INBOX_NOT_FOUND", f"no inbox {inbox_id}")
         inbox = next((i for i in self.inboxes if i["id"] == inbox_id), None)
         # Inboxes are personal: someone else's inbox is indistinguishable from a missing one.
-        if inbox is None or self.inbox_owners[inbox_id] != owner:
+        if inbox is None or self.inbox_owners[inbox_id] != owner or not self._visible(inbox, owner):
             raise MockMcpError("INBOX_NOT_FOUND", f"no inbox {inbox_id}")
         return inbox
 
     def _allo_list_inboxes(self, user_id=None):
         self._require("INBOXES_READ")
         owner = self._inbox_owner(user_id)
-        return {"data": [i for i in self.inboxes if self.inbox_owners[i["id"]] == owner]}
+        return {
+            "data": [
+                copy.deepcopy(i)
+                for i in self.inboxes
+                if self.inbox_owners[i["id"]] == owner and self._visible(i, owner)
+            ]
+        }
 
     def _allo_get_inbox_suggestions(self):
         # The caller's own suggestions only: there is no user_id.
@@ -654,6 +705,7 @@ class MockAlloMcp:
         if owned >= LIMITS["inboxes_per_user_max"]:
             raise MockMcpError("INBOX_LIMIT_REACHED", "This user already has the maximum of 50 inboxes.")
         self._check_sources(owner, sources)
+        self._check_teammate_write(owner, sources)
         self._next_inbox += 1
         inbox = {
             "id": f"inb_{self._next_inbox:03d}",
@@ -680,6 +732,7 @@ class MockAlloMcp:
             raise MockMcpError("INBOX_NAME_REQUIRED", "name is required")
         if "sources" in changes:
             self._check_sources(owner, changes["sources"])
+            self._check_teammate_write(owner, changes["sources"])
             changes["sources"] = copy.deepcopy(changes["sources"])
         if "filters" in changes:
             # Replaced wholesale; null clears them.
@@ -691,6 +744,12 @@ class MockAlloMcp:
         self._require("INBOXES_WRITE")
         owner = self._inbox_owner(user_id)
         inbox = self._find_inbox(inbox_id, owner)
+        if owner != self.caller:
+            lines = {s["allo_number"] for s in inbox["sources"]}
+            if lines - self._managed_lines(inbox["sources"]):
+                raise MockMcpError(
+                    "FORBIDDEN", "this inbox also holds lines in a workspace you don't manage"
+                )
         self.inboxes.remove(inbox)
         del self.inbox_owners[inbox_id]
         return {"deleted": True, "id": inbox_id}

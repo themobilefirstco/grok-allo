@@ -112,6 +112,9 @@ still arrive.
   without it.
 - Invalid source: rebuild it from the suggestion or menu option. Only merge
   branches as described above; never change node_ids or digits.
+- An inbox that can't be listed here (Allo says the feature or a contact filter
+  isn't supported, or the contact filter is too large): tell the user plainly,
+  and suggest opening that inbox in the Allo app.
 
 **Delete an inbox only when the user explicitly asks.** Never as cleanup, never
 to "start fresh" during setup. Before deleting, confirm the inbox by name and
@@ -119,6 +122,9 @@ whose it is (theirs or a named teammate's), and name the consequence: the inbox
 disappears from that person's switcher and its setup is lost. The
 conversations themselves stay in Allo. Offer muting as the reversible
 alternative.
+If deleting a teammate's inbox is refused, the inbox includes lines outside
+the user's workspace: explain that, and suggest the teammate deletes it
+themselves.
 
 ## Safety
 
