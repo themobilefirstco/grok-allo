@@ -50,12 +50,16 @@ about them in business terms ("your Sales inbox", "callers who pressed 1"),
 never about sources, node ids or conditions. A user can have at most 50.
 
 **"Set up my inboxes."** Start from `allo_get_inbox_suggestions`. Each
-suggestion has a name and a ready `source` (a line, with its menu conditions
-already filled in). Show the user the proposed list by name, let them drop or
-rename entries, and **confirm the final list before creating anything**. Then
-call `allo_create_inbox` once per confirmed inbox, with the suggestion's
-`source` as its only source, unchanged. Report what was created, and anything
-that failed.
+suggestion has a ready `source` (a line, with its menu conditions already
+filled in), but not always a name: whole-line suggestions never have one, and
+some menu branches don't either. For an unnamed suggestion, name it after its
+line (the line's name from `allo_list_numbers`), adding the menu choice for a
+branch ("Website FR, pressed 2"), or ask the user what to call it. Show the user
+the proposed list with those names, let them drop or rename entries, and
+**confirm the final list before creating anything**. Then call
+`allo_create_inbox` once per confirmed inbox, with the suggestion's `source` as
+its only source, unchanged. Report what was created, and anything that
+failed.
 
 **Custom branches** ("only callers who pressed 1 on Website FR"). Find the line
 with `allo_list_numbers`, then read its published phone menu with
@@ -75,22 +79,28 @@ the same line's menu; Allo rejects that. Use one source per line.
 admins and managers can do this. Suggestions take no teammate, so for a
 teammate either reuse a suggestion's `source` on a line the teammate can
 access, or build it: a whole line (empty `conditions`) or a condition from
-`allo_list_menu_options`. If Allo says the teammate can't access a line, the
-inbox can't include it. With one source, name that line and offer to leave it
+`allo_list_menu_options`. Every line must be one the teammate can access **and**
+sit in a workspace you manage. Lines the teammate has in other workspaces stay
+hidden from you and are kept as they are when you edit the inbox; an edit that
+leaves no line in a workspace you manage is refused as an invalid source, so
+keep at least one. If Allo says a line isn't allowed, the inbox can't include
+it. With one source, name that line and offer to leave it
 out; with several, the error doesn't say which, so ask the user which lines the
 teammate works rather than claiming to know. When the name matches more than
 one person, ask which one.
 
 **"Show me my Sales inbox."** Call `allo_list_inboxes`, match the name, and pass
 its `inbox_id` to `allo_list_conversations` instead of `allo_number`. The result
-already applies the inbox's saved filters except "unread only", so don't filter
-again; when the user wants unread conversations, pass `unread` set to true
-yourself. Each row
+already applies the inbox's saved filters, so don't filter again. Unread is not
+an inbox filter: never save "unread only" on an inbox. When the user wants
+unread conversations, pass `unread` set to true on the listing. Each row
+carries `pinned`, so you can say which customers are pinned without another
+call. Each row
 carries its own `allo_number`: an inbox can span several lines, so to pin,
 reply or text from that list, use the row's `allo_number`, never a guess. If no
 inbox matches, list the ones that exist rather than falling back to a line. If
-an inbox you just created comes back as not found, retry once before telling
-the user.
+an inbox you just created comes back as not found, retry once, and only when
+listing its conversations; anywhere else, not found means not found.
 
 **Pin or unpin a customer.** `allo_pin_conversation` and
 `allo_unpin_conversation`, with the customer's number and the line. At most 10

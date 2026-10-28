@@ -20,10 +20,11 @@ from allo_registry import ENUMS, LIMITS, TOOLS, VERIFIED_PARAM_TOOLS
 class MockMcpError(Exception):
     """Mirrors an MCP tool error, with the shape the skills must handle."""
 
-    def __init__(self, code, message):
+    def __init__(self, code, message, retryable=False):
         super().__init__(f"{code}: {message}")
         self.code = code
         self.message = message
+        self.retryable = retryable
 
 
 # --- Fixtures -------------------------------------------------------------
@@ -177,20 +178,22 @@ MENU_OPTIONS = {
     "+15005550102": [],
 }
 
-# Suggestions carry a ready `source` (one line, conditions filled in), and no emoji.
+# Suggestions carry a ready `source` (one line, conditions filled in), and no
+# emoji. Whole-line suggestions (branch None) always have name and description
+# None; a branch suggestion can be unnamed too. The agent names those itself.
 INBOX_SUGGESTIONS = [
     {
         "allo_number": "+15005550101",
-        "name": "Sales",
-        "description": "Everything on the Sales line",
+        "name": None,
+        "description": None,
         "branch": None,
         "answered": 3, "rung": 4, "texted": 1, "score": 90,
         "source": {"allo_number": "+15005550101", "conditions": []},
     },
     {
         "allo_number": "+15005550102",
-        "name": "Support",
-        "description": "Everything on the Support line",
+        "name": None,
+        "description": None,
         "branch": None,
         "answered": 1, "rung": 1, "texted": 0, "score": 40,
         "source": {"allo_number": "+15005550102", "conditions": []},
@@ -203,7 +206,18 @@ INBOX_SUGGESTIONS = [
         "answered": 1, "rung": 1, "texted": 0, "score": 70,
         "source": {
             "allo_number": "+15005550101",
-            "conditions": [dict(MENU_OPTIONS["+15005550101"][0]["condition"])],
+            "conditions": [copy.deepcopy(MENU_OPTIONS["+15005550101"][0]["condition"])],
+        },
+    },
+    {
+        "allo_number": "+15005550101",
+        "name": None,
+        "description": None,
+        "branch": [{"node_id": "node-1", "digit": "2"}, {"node_id": "node-4", "digit": "1"}],
+        "answered": 1, "rung": 1, "texted": 0, "score": 50,
+        "source": {
+            "allo_number": "+15005550101",
+            "conditions": [copy.deepcopy(MENU_OPTIONS["+15005550101"][2]["condition"])],
         },
     },
 ]
@@ -217,7 +231,12 @@ INBOX_FILTER_TYPES = (
     "VOICEMAIL",
     "AI_ASSISTANT",
 )
-INBOX_FILTER_KEYS = {"types", "user_ids", "contact_ids", "contact_list_ids", "unread"}
+INBOX_FILTER_KEYS = {"types", "user_ids", "contact_ids", "contact_list_ids"}
+
+# Menu limits, mirroring api-allo's InboxSourceService.
+MAX_BRANCHES = 20
+MAX_STEPS_PER_BRANCH = 6
+MAX_STEPS_PER_INBOX = 60
 
 
 def _activity_types(item):
@@ -245,7 +264,7 @@ class MockAlloMcp:
         # `scopes=None` means "everything"; pass a set to simulate a restricted
         # connection. `fail_with` forces an error for error-handling tests.
         # `caller` is the user the connection acts as (default: the admin).
-        # `read_lag` makes a fresh inbox miss its first lookup, as a replica would.
+        # `read_lag` makes a fresh inbox's first conversation listing miss once, as a replica would.
         self.scopes = scopes
         self.caller = caller
         self.read_lag = read_lag
@@ -558,23 +577,30 @@ class MockAlloMcp:
         if line not in LINE_ACCESS.get(user, set()):
             raise MockMcpError("ALLO_NUMBER_FORBIDDEN", f"{user} cannot access {line}")
 
+    def _is_managed(self, line):
+        return LINE_WORKSPACE.get(line) in MANAGED_WORKSPACES.get(self.caller, set())
+
     def _check_sources(self, owner, sources):
+        teammate = owner != self.caller
         if not sources:
-            raise MockMcpError("INVALID_INBOX_SOURCE", "an inbox needs at least one source")
+            if teammate:
+                # A teammate's inbox must keep a line in a workspace the caller manages.
+                raise MockMcpError("INVALID_INBOX_SOURCE", "no line left in a workspace you manage")
+            return  # Your own inbox may have no sources.
         lines = [s.get("allo_number") for s in sources]
         if len(set(lines)) != len(lines):
             raise MockMcpError("INVALID_INBOX_SOURCE", "one source per line")
+        total_steps = 0
         for source in sources:
             line = source.get("allo_number")
             self._require_line(owner, line)
-            # The API rejects menu nodes and steps that aren't in the line's published menu.
-            known_steps = {
-                (step["node_id"], step["digit"])
-                for option in MENU_OPTIONS.get(line, [])
-                for step in option["path"]
-            }
+            if teammate and not self._is_managed(line):
+                raise MockMcpError("ALLO_NUMBER_FORBIDDEN", f"{line} is outside the workspaces you manage")
+            options = MENU_OPTIONS.get(line, [])
+            paths = [[(s["node_id"], s["digit"]) for s in o["path"]] for o in options]
+            known_steps = {step for path in paths for step in path}
             conditions = source.get("conditions") or []
-            if conditions and not MENU_OPTIONS.get(line):
+            if conditions and not options:
                 raise MockMcpError(
                     "INVALID_INBOX_SOURCE", f"{line} has no phone menu, so it takes no menu conditions"
                 )
@@ -590,20 +616,40 @@ class MockAlloMcp:
                     raise MockMcpError("INVALID_INBOX_SOURCE", "include_no_choice is required")
                 if cond.get("type") == "MENU_OPTION":
                     node = cond.get("node_id")
+                    digits = cond.get("digits") or []
+                    if len(set(digits)) != len(digits):
+                        raise MockMcpError("INVALID_INBOX_SOURCE", "digits must be distinct")
+                    if not digits and not cond["include_no_choice"]:
+                        raise MockMcpError(
+                            "INVALID_INBOX_SOURCE", "empty digits need include_no_choice=true"
+                        )
                     if node not in {n for n, _ in known_steps}:
                         raise MockMcpError("INVALID_INBOX_SOURCE", f"unknown menu node {node}")
+                    for digit in digits:
+                        if (node, digit) not in known_steps:
+                            raise MockMcpError("INVALID_INBOX_SOURCE", f"no option {digit} at {node}")
                     option_nodes.append(node)
                 elif cond.get("type") == "MENU_BRANCH":
                     branches = cond.get("branches") or []
                     if not branches:
                         raise MockMcpError("INVALID_INBOX_SOURCE", "MENU_BRANCH needs branches")
+                    if len(branches) > MAX_BRANCHES:
+                        raise MockMcpError("INVALID_INBOX_SOURCE", f"at most {MAX_BRANCHES} branches")
                     for branch in branches:
-                        for step in branch:
-                            if (step.get("node_id"), step.get("digit")) not in known_steps:
-                                raise MockMcpError(
-                                    "INVALID_INBOX_SOURCE", f"unknown menu step {step}"
-                                )
-                            branch_nodes.add(step["node_id"])
+                        if len(branch) > MAX_STEPS_PER_BRANCH:
+                            raise MockMcpError(
+                                "INVALID_INBOX_SOURCE", f"at most {MAX_STEPS_PER_BRANCH} steps a branch"
+                            )
+                        total_steps += len(branch)
+                        if total_steps > MAX_STEPS_PER_INBOX:
+                            raise MockMcpError(
+                                "INVALID_INBOX_SOURCE", f"at most {MAX_STEPS_PER_INBOX} steps an inbox"
+                            )
+                        steps = [(s.get("node_id"), s.get("digit")) for s in branch]
+                        # A branch must be a listed option's path, exactly.
+                        if steps not in paths:
+                            raise MockMcpError("INVALID_INBOX_SOURCE", f"unknown menu branch {branch}")
+                        branch_nodes.update(n for n, _ in steps)
                 else:
                     raise MockMcpError("INVALID_INBOX_SOURCE", f"unknown condition {cond.get('type')}")
             if len(set(option_nodes)) != len(option_nodes) or set(option_nodes) & branch_nodes:
@@ -611,46 +657,44 @@ class MockAlloMcp:
 
     @staticmethod
     def _normalize_filters(filters):
-        """Validate like the API (keys, types, blank ids, 50 users) and fill all five keys."""
+        """Validate like the API (keys, types, blanks, caps) and fill all four keys."""
         filters = filters or {}
         if set(filters) - INBOX_FILTER_KEYS:
             raise MockMcpError("INVALID_INBOX_FILTERS", f"unknown filter keys {sorted(set(filters) - INBOX_FILTER_KEYS)}")
         if set(filters.get("types") or []) - set(INBOX_FILTER_TYPES):
             raise MockMcpError("INVALID_INBOX_FILTERS", "unknown activity type")
-        user_ids = filters.get("user_ids") or []
-        if len(user_ids) > 50:
-            raise MockMcpError("INVALID_INBOX_FILTERS", "at most 50 user ids")
-        for key in ("user_ids", "contact_ids", "contact_list_ids"):
-            if any(not str(v).strip() for v in filters.get(key) or []):
+        for key, cap in (("user_ids", 50), ("contact_ids", 50), ("contact_list_ids", 10)):
+            values = filters.get(key) or []
+            if len(values) > cap:
+                raise MockMcpError("INVALID_INBOX_FILTERS", f"at most {cap} {key}")
+            if any(not str(v).strip() for v in values):
                 raise MockMcpError("INVALID_INBOX_FILTERS", f"blank id in {key}")
         return {
             "types": list(filters.get("types") or []),
-            "user_ids": list(user_ids),
+            "user_ids": list(filters.get("user_ids") or []),
             "contact_ids": list(filters.get("contact_ids") or []),
             "contact_list_ids": list(filters.get("contact_list_ids") or []),
-            "unread": bool(filters.get("unread", False)),
         }
 
-    def _managed_lines(self, sources):
-        """The sources' lines that sit in a workspace the caller manages."""
-        managed = MANAGED_WORKSPACES.get(self.caller, set())
-        return {s["allo_number"] for s in sources if LINE_WORKSPACE.get(s["allo_number"]) in managed}
+    def _view(self, inbox, owner):
+        """The inbox as this caller sees it: a teammate's other-workspace sources are hidden."""
+        view = copy.deepcopy(inbox)
+        if owner != self.caller:
+            view["sources"] = [s for s in view["sources"] if self._is_managed(s["allo_number"])]
+        return view
 
     def _visible(self, inbox, owner):
         # For a teammate, an admin only sees inboxes with a line in a workspace they manage.
-        return owner == self.caller or bool(self._managed_lines(inbox["sources"]))
+        return owner == self.caller or any(self._is_managed(s["allo_number"]) for s in inbox["sources"])
 
-    def _check_teammate_write(self, owner, sources):
-        if owner != self.caller and not self._managed_lines(sources):
-            raise MockMcpError(
-                "INVALID_INBOX_SOURCE", "a teammate's inbox needs a line in a workspace you manage"
-            )
+    def _new_id(self):
+        self._next_inbox += 1
+        return f"inb-{self._next_inbox:03d}"
 
     def seed_inbox(self, owner, name, sources):
         """Test helper: an inbox the user made themselves, bypassing the caller's checks."""
-        self._next_inbox += 1
         inbox = {
-            "id": f"inb_{self._next_inbox:03d}",
+            "id": self._new_id(),
             "name": name,
             "emoji": None,
             "sources": copy.deepcopy(sources),
@@ -662,10 +706,6 @@ class MockAlloMcp:
         return copy.deepcopy(inbox)
 
     def _find_inbox(self, inbox_id, owner):
-        if inbox_id in self.unsettled:
-            # Read-after-create lag: the first lookup of a fresh inbox misses once.
-            self.unsettled.discard(inbox_id)
-            raise MockMcpError("INBOX_NOT_FOUND", f"no inbox {inbox_id}")
         inbox = next((i for i in self.inboxes if i["id"] == inbox_id), None)
         # Inboxes are personal: someone else's inbox is indistinguishable from a missing one.
         if inbox is None or self.inbox_owners[inbox_id] != owner or not self._visible(inbox, owner):
@@ -677,7 +717,7 @@ class MockAlloMcp:
         owner = self._inbox_owner(user_id)
         return {
             "data": [
-                copy.deepcopy(i)
+                self._view(i, owner)
                 for i in self.inboxes
                 if self.inbox_owners[i["id"]] == owner and self._visible(i, owner)
             ]
@@ -705,10 +745,8 @@ class MockAlloMcp:
         if owned >= LIMITS["inboxes_per_user_max"]:
             raise MockMcpError("INBOX_LIMIT_REACHED", "This user already has the maximum of 50 inboxes.")
         self._check_sources(owner, sources)
-        self._check_teammate_write(owner, sources)
-        self._next_inbox += 1
         inbox = {
-            "id": f"inb_{self._next_inbox:03d}",
+            "id": self._new_id(),
             "name": name,
             "emoji": emoji,
             "sources": copy.deepcopy(sources),
@@ -719,37 +757,39 @@ class MockAlloMcp:
         self.inbox_owners[inbox["id"]] = owner
         if self.read_lag:
             self.unsettled.add(inbox["id"])
-        return {"data": copy.deepcopy(inbox)}
+        return {"data": self._view(inbox, owner)}
 
     def _allo_update_inbox(self, inbox_id, user_id=None, **changes):
         self._require("INBOXES_WRITE")
-        unknown = sorted(set(changes) - self.UPDATABLE_INBOX_FIELDS)
-        if unknown:
-            raise MockMcpError("INVALID_ARGUMENT", f"cannot update {unknown}")
+        # Unknown fields are ignored, as the API does; id and ownership never change.
+        changes = {k: v for k, v in changes.items() if k in self.UPDATABLE_INBOX_FIELDS}
         owner = self._inbox_owner(user_id)
         inbox = self._find_inbox(inbox_id, owner)
         if "name" in changes and (not changes["name"] or not changes["name"].strip()):
             raise MockMcpError("INBOX_NAME_REQUIRED", "name is required")
         if "sources" in changes:
             self._check_sources(owner, changes["sources"])
-            self._check_teammate_write(owner, changes["sources"])
-            changes["sources"] = copy.deepcopy(changes["sources"])
+            new_sources = copy.deepcopy(changes["sources"])
+            if owner != self.caller:
+                # The teammate's other-workspace sources were hidden, so they are kept.
+                new_sources += [
+                    copy.deepcopy(s) for s in inbox["sources"] if not self._is_managed(s["allo_number"])
+                ]
+            changes["sources"] = new_sources
         if "filters" in changes:
             # Replaced wholesale; null clears them.
             changes["filters"] = self._normalize_filters(changes["filters"])
         inbox.update(changes)
-        return {"data": copy.deepcopy(inbox)}
+        return {"data": self._view(inbox, owner)}
 
     def _allo_delete_inbox(self, inbox_id, user_id=None):
         self._require("INBOXES_WRITE")
         owner = self._inbox_owner(user_id)
         inbox = self._find_inbox(inbox_id, owner)
-        if owner != self.caller:
-            lines = {s["allo_number"] for s in inbox["sources"]}
-            if lines - self._managed_lines(inbox["sources"]):
-                raise MockMcpError(
-                    "FORBIDDEN", "this inbox also holds lines in a workspace you don't manage"
-                )
+        if owner != self.caller and not all(self._is_managed(s["allo_number"]) for s in inbox["sources"]):
+            raise MockMcpError(
+                "FORBIDDEN", "this inbox also holds lines in a workspace you don't manage"
+            )
         self.inboxes.remove(inbox)
         del self.inbox_owners[inbox_id]
         return {"deleted": True, "id": inbox_id}
@@ -775,7 +815,6 @@ class MockAlloMcp:
 
     @staticmethod
     def _filters_match(filters, items):
-        # A saved `unread` is NOT applied: in the app it is a client-side toggle.
         if filters.get("types") and not any(
             _activity_types(i) & set(filters["types"]) for i in items
         ):
@@ -789,6 +828,10 @@ class MockAlloMcp:
         if bool(allo_number) == bool(inbox_id):
             raise MockMcpError("INVALID_REQUEST", "provide exactly one of allo_number or inbox_id")
         if inbox_id:
+            if inbox_id in self.unsettled:
+                # Read-after-create lag on the inbox conversation listing only.
+                self.unsettled.discard(inbox_id)
+                raise MockMcpError("INBOX_NOT_FOUND", f"no inbox {inbox_id}", retryable=True)
             inbox = self._find_inbox(inbox_id, self.caller)
             items = [i for i in ITEMS if any(self._source_matches(s, i) for s in inbox["sources"])]
             filters = inbox["filters"]
@@ -828,8 +871,8 @@ class MockAlloMcp:
         return {"pinned": True, "contact_number": contact_number, "allo_number": allo_number}
 
     def _allo_unpin_conversation(self, contact_number, allo_number):
+        # No line-access check: unpinning only removes the caller's own pin.
         self._require("CONVERSATIONS_WRITE")
-        self._require_line(self.caller, allo_number)
         key = (allo_number, contact_number)
         if key in self.pins:
             self.pins.remove(key)
