@@ -9,7 +9,8 @@
   custom phone-menu branch inboxes from the menu options' ready `condition`
   (several options on one line merge into one condition), inboxes for a
   teammate (admins and managers, sources built from menu options or whole
-  lines), opening a named inbox and acting on each row's own line, pinning
+  lines), opening a named inbox (saved filters apply, except "unread only")
+  and acting on each row's own line, pinning
   customers (max 10), muting an inbox, and deleting one only on an explicit
   request. Covers the 50-inbox limit, invalid filters, and one retry when a
   fresh inbox isn't found yet. `allo_create_inbox` and `allo_delete_inbox`

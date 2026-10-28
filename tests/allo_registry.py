@@ -188,7 +188,10 @@ TOOLS = {
     "allo_list_inboxes": ((), ("user_id",)),
     "allo_get_inbox_suggestions": ((), ()),
     "allo_list_menu_options": (("number",), ()),
-    "allo_create_inbox": (("name", "sources"), ("emoji", "filters", "user_id")),
+    "allo_create_inbox": (
+        ("name", "sources"),
+        ("emoji", "filters", "notifications_muted", "user_id"),
+    ),
     "allo_update_inbox": (
         ("inbox_id",),
         ("emoji", "filters", "name", "notifications_muted", "sources", "user_id"),

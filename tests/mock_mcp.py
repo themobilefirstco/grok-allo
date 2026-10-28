@@ -162,6 +162,7 @@ MENU_OPTIONS = {
             "Billing",
         ),
     ],
+    # Not routed by the call-flow engine, so it has no menu to read.
     "+15005550102": [],
 }
 
@@ -239,7 +240,8 @@ class MockAlloMcp:
         self.read_lag = read_lag
         self.unsettled = set()
         self._next_inbox = 0
-        self.inboxes = []          # created inboxes, each with its owner
+        self.inboxes = []          # created inboxes, as the API returns them
+        self.inbox_owners = {}     # inbox id -> owning user (server-side only, never returned)
         self.pins = []             # [(allo_number, contact_number)] for the caller
         self.fail_with = fail_with or {}
         self.calls = []            # [(tool, args)] in order
@@ -529,16 +531,21 @@ class MockAlloMcp:
 
     # -- inboxes --
 
+    UPDATABLE_INBOX_FIELDS = {"name", "emoji", "sources", "filters", "notifications_muted"}
+
     def _inbox_owner(self, user_id):
         """The user an inbox call acts for, enforcing the teammate rule."""
         if user_id is None or user_id == self.caller:
             return self.caller
-        if user_id not in LINE_ACCESS:
-            raise MockMcpError("USER_NOT_FOUND", f"no user {user_id}")
         role = next(u["role"] for u in USERS if u["id"] == self.caller)
-        if role not in ("ADMIN", "MANAGER"):
+        # Unknown and unmanaged users look the same: the caller may not act for them.
+        if user_id not in LINE_ACCESS or role not in ("ADMIN", "MANAGER"):
             raise MockMcpError("FORBIDDEN", "only admins and managers manage a teammate's inboxes")
         return user_id
+
+    def _require_line(self, user, line):
+        if line not in LINE_ACCESS.get(user, set()):
+            raise MockMcpError("ALLO_NUMBER_FORBIDDEN", f"{user} cannot access {line}")
 
     def _check_sources(self, owner, sources):
         if not sources:
@@ -548,8 +555,8 @@ class MockAlloMcp:
             raise MockMcpError("INVALID_INBOX_SOURCE", "one source per line")
         for source in sources:
             line = source.get("allo_number")
-            if line not in LINE_ACCESS[owner]:
-                raise MockMcpError("ALLO_NUMBER_FORBIDDEN", f"{owner} cannot access {line}")
+            self._require_line(owner, line)
+            # The API rejects menu nodes and steps that aren't in the line's published menu.
             known_steps = {
                 (step["node_id"], step["digit"])
                 for option in MENU_OPTIONS.get(line, [])
@@ -564,6 +571,8 @@ class MockAlloMcp:
             option_nodes = []
             branch_nodes = set()
             for cond in conditions:
+                if not isinstance(cond.get("include_no_choice"), bool):
+                    raise MockMcpError("INVALID_INBOX_SOURCE", "include_no_choice is required")
                 if cond.get("type") == "MENU_OPTION":
                     node = cond.get("node_id")
                     if node not in {n for n, _ in known_steps}:
@@ -585,16 +594,27 @@ class MockAlloMcp:
             if len(set(option_nodes)) != len(option_nodes) or set(option_nodes) & branch_nodes:
                 raise MockMcpError("INVALID_INBOX_SOURCE", "a menu node appears in two conditions")
 
-    def _check_filters(self, filters):
-        if not filters:
-            return
+    @staticmethod
+    def _normalize_filters(filters):
+        """Validate like the API (keys, types, blank ids, 50 users) and fill all five keys."""
+        filters = filters or {}
         if set(filters) - INBOX_FILTER_KEYS:
             raise MockMcpError("INVALID_INBOX_FILTERS", f"unknown filter keys {sorted(set(filters) - INBOX_FILTER_KEYS)}")
         if set(filters.get("types") or []) - set(INBOX_FILTER_TYPES):
             raise MockMcpError("INVALID_INBOX_FILTERS", "unknown activity type")
         user_ids = filters.get("user_ids") or []
-        if len(user_ids) > 50 or set(user_ids) - set(LINE_ACCESS):
-            raise MockMcpError("INVALID_INBOX_FILTERS", "unknown or too many user ids")
+        if len(user_ids) > 50:
+            raise MockMcpError("INVALID_INBOX_FILTERS", "at most 50 user ids")
+        for key in ("user_ids", "contact_ids", "contact_list_ids"):
+            if any(not str(v).strip() for v in filters.get(key) or []):
+                raise MockMcpError("INVALID_INBOX_FILTERS", f"blank id in {key}")
+        return {
+            "types": list(filters.get("types") or []),
+            "user_ids": list(user_ids),
+            "contact_ids": list(filters.get("contact_ids") or []),
+            "contact_list_ids": list(filters.get("contact_list_ids") or []),
+            "unread": bool(filters.get("unread", False)),
+        }
 
     def _find_inbox(self, inbox_id, owner):
         if inbox_id in self.unsettled:
@@ -603,14 +623,14 @@ class MockAlloMcp:
             raise MockMcpError("INBOX_NOT_FOUND", f"no inbox {inbox_id}")
         inbox = next((i for i in self.inboxes if i["id"] == inbox_id), None)
         # Inboxes are personal: someone else's inbox is indistinguishable from a missing one.
-        if inbox is None or inbox["owner"] != owner:
+        if inbox is None or self.inbox_owners[inbox_id] != owner:
             raise MockMcpError("INBOX_NOT_FOUND", f"no inbox {inbox_id}")
         return inbox
 
     def _allo_list_inboxes(self, user_id=None):
         self._require("INBOXES_READ")
         owner = self._inbox_owner(user_id)
-        return {"data": [i for i in self.inboxes if i["owner"] == owner]}
+        return {"data": [i for i in self.inboxes if self.inbox_owners[i["id"]] == owner]}
 
     def _allo_get_inbox_suggestions(self):
         # The caller's own suggestions only: there is no user_id.
@@ -619,52 +639,61 @@ class MockAlloMcp:
 
     def _allo_list_menu_options(self, number):
         self._require("INBOXES_READ")
-        if number not in MENU_OPTIONS:
-            raise MockMcpError("NOT_FOUND", f"unknown line {number}")
-        return {"data": copy.deepcopy(MENU_OPTIONS[number])}
+        self._require_line(self.caller, number)
+        # Lines not routed by the call-flow engine have no menu: empty, not an error.
+        return {"data": copy.deepcopy(MENU_OPTIONS.get(number, []))}
 
-    def _allo_create_inbox(self, name, sources, emoji=None, filters=None, user_id=None):
+    def _allo_create_inbox(
+        self, name, sources, emoji=None, filters=None, notifications_muted=False, user_id=None
+    ):
         self._require("INBOXES_WRITE")
         if not name or not name.strip():
             raise MockMcpError("INBOX_NAME_REQUIRED", "name is required")
         owner = self._inbox_owner(user_id)
-        if sum(1 for i in self.inboxes if i["owner"] == owner) >= LIMITS["inboxes_per_user_max"]:
+        owned = sum(1 for o in self.inbox_owners.values() if o == owner)
+        if owned >= LIMITS["inboxes_per_user_max"]:
             raise MockMcpError("INBOX_LIMIT_REACHED", "This user already has the maximum of 50 inboxes.")
         self._check_sources(owner, sources)
-        self._check_filters(filters)
         self._next_inbox += 1
         inbox = {
             "id": f"inb_{self._next_inbox:03d}",
             "name": name,
             "emoji": emoji,
             "sources": copy.deepcopy(sources),
-            "filters": filters or {},
-            "notifications_muted": False,
-            "owner": owner,
+            "filters": self._normalize_filters(filters),
+            "notifications_muted": bool(notifications_muted),
         }
         self.inboxes.append(inbox)
+        self.inbox_owners[inbox["id"]] = owner
         if self.read_lag:
             self.unsettled.add(inbox["id"])
-        return {"data": inbox}
+        return {"data": copy.deepcopy(inbox)}
 
     def _allo_update_inbox(self, inbox_id, user_id=None, **changes):
         self._require("INBOXES_WRITE")
+        unknown = sorted(set(changes) - self.UPDATABLE_INBOX_FIELDS)
+        if unknown:
+            raise MockMcpError("INVALID_ARGUMENT", f"cannot update {unknown}")
         owner = self._inbox_owner(user_id)
         inbox = self._find_inbox(inbox_id, owner)
+        if "name" in changes and (not changes["name"] or not changes["name"].strip()):
+            raise MockMcpError("INBOX_NAME_REQUIRED", "name is required")
         if "sources" in changes:
             self._check_sources(owner, changes["sources"])
+            changes["sources"] = copy.deepcopy(changes["sources"])
         if "filters" in changes:
-            self._check_filters(changes["filters"])
-            changes["filters"] = changes["filters"] or {}
+            # Replaced wholesale; null clears them.
+            changes["filters"] = self._normalize_filters(changes["filters"])
         inbox.update(changes)
-        return {"data": inbox}
+        return {"data": copy.deepcopy(inbox)}
 
     def _allo_delete_inbox(self, inbox_id, user_id=None):
         self._require("INBOXES_WRITE")
         owner = self._inbox_owner(user_id)
         inbox = self._find_inbox(inbox_id, owner)
         self.inboxes.remove(inbox)
-        return {"data": {"deleted": inbox_id}}
+        del self.inbox_owners[inbox_id]
+        return {"deleted": True, "id": inbox_id}
 
     @staticmethod
     def _source_matches(source, item):
@@ -687,24 +716,23 @@ class MockAlloMcp:
 
     @staticmethod
     def _filters_match(filters, items):
+        # A saved `unread` is NOT applied: in the app it is a client-side toggle.
         if filters.get("types") and not any(
             _activity_types(i) & set(filters["types"]) for i in items
         ):
             return False
         if filters.get("user_ids") and not any(i["user_id"] in filters["user_ids"] for i in items):
             return False
-        if filters.get("unread") and not any(i["unread"] for i in items):
-            return False
         return True
 
-    def _allo_list_conversations(self, allo_number=None, inbox_id=None, pinned=None, **_):
+    def _allo_list_conversations(self, allo_number=None, inbox_id=None, pinned=None, unread=None, **_):
         self._require("CONVERSATIONS_READ")
         if bool(allo_number) == bool(inbox_id):
             raise MockMcpError("INVALID_REQUEST", "provide exactly one of allo_number or inbox_id")
         if inbox_id:
             inbox = self._find_inbox(inbox_id, self.caller)
             items = [i for i in ITEMS if any(self._source_matches(s, i) for s in inbox["sources"])]
-            filters = inbox["filters"] or {}
+            filters = inbox["filters"]
         else:
             items = [i for i in ITEMS if i["allo_number"] == allo_number]
             filters = {}
@@ -712,30 +740,38 @@ class MockAlloMcp:
         for item in items:
             groups.setdefault((item["allo_number"], item["contact_number"]), []).append(item)
         data = [
-            {"contact_number": contact, "allo_number": line, "pinned": (line, contact) in self.pins}
+            {
+                "contact_number": contact,
+                "allo_number": line,
+                "pinned": (line, contact) in self.pins,
+                "unread": any(i["unread"] for i in group),
+            }
             for (line, contact), group in groups.items()
             if self._filters_match(filters, group)
         ]
         if pinned is not None:
             data = [r for r in data if r["pinned"] == pinned]
+        if unread is not None:
+            data = [r for r in data if r["unread"] == unread]
         return {"data": data, "pagination": {"total_count": len(data)}}
 
     def _allo_pin_conversation(self, contact_number, allo_number):
         self._require("CONVERSATIONS_WRITE")
+        self._require_line(self.caller, allo_number)
         key = (allo_number, contact_number)
-        if key in self.pins:
-            return {"data": {"pinned": True}}
-        if len(self.pins) >= LIMITS["pinned_conversations_max"]:
-            raise MockMcpError(
-                "PIN_LIMIT_REACHED",
-                "You already pinned the maximum of 10 conversations.",
-            )
-        self.pins.append(key)
-        return {"data": {"pinned": True}}
+        if key not in self.pins:
+            if len(self.pins) >= LIMITS["pinned_conversations_max"]:
+                raise MockMcpError(
+                    "PIN_LIMIT_REACHED",
+                    "You already pinned the maximum of 10 conversations.",
+                )
+            self.pins.append(key)
+        return {"pinned": True, "contact_number": contact_number, "allo_number": allo_number}
 
     def _allo_unpin_conversation(self, contact_number, allo_number):
         self._require("CONVERSATIONS_WRITE")
+        self._require_line(self.caller, allo_number)
         key = (allo_number, contact_number)
         if key in self.pins:
             self.pins.remove(key)
-        return {"data": {"pinned": False}}
+        return {"pinned": False, "contact_number": contact_number, "allo_number": allo_number}

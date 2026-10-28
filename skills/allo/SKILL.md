@@ -62,6 +62,8 @@ with `allo_list_numbers`, then read its published phone menu with
 `allo_list_menu_options`. Match the user's words to an option's `digits` and
 `label`. Each option carries a ready `condition`; use it as is. If no option
 matches, or more than one does, show the options and ask. Never guess a branch.
+If the line has no menu options at all, tell the user that line needs a
+published call flow with a phone menu before it can be split by menu choice.
 
 To combine several options on the same line ("1 or 2 on Website FR"), merge
 them into **one** condition: take the first option's `condition` and append
@@ -70,15 +72,20 @@ the same line's menu; Allo rejects that. Use one source per line.
 
 **Inboxes for a teammate** ("and one for Lucio"). Resolve the teammate with
 `allo_list_users` and pass their id as `user_id` on `allo_create_inbox`. Only
-admins and managers can do this. Suggestions are the caller's own, so for a
-teammate build the source yourself: a whole line (empty `conditions`) or a
-condition from `allo_list_menu_options`. If the teammate can't access a line,
-the inbox can't include it: say which line, and offer to leave it out. When the
-name matches more than one person, ask which one.
+admins and managers can do this. Suggestions take no teammate, so for a
+teammate either reuse a suggestion's `source` on a line the teammate can
+access, or build it: a whole line (empty `conditions`) or a condition from
+`allo_list_menu_options`. If Allo says the teammate can't access a line, the
+inbox can't include it. With one source, name that line and offer to leave it
+out; with several, the error doesn't say which, so ask the user which lines the
+teammate works rather than claiming to know. When the name matches more than
+one person, ask which one.
 
 **"Show me my Sales inbox."** Call `allo_list_inboxes`, match the name, and pass
 its `inbox_id` to `allo_list_conversations` instead of `allo_number`. The result
-already applies the inbox's saved filters, so don't filter again. Each row
+already applies the inbox's saved filters except "unread only", so don't filter
+again; when the user wants unread conversations, pass `unread` set to true
+yourself. Each row
 carries its own `allo_number`: an inbox can span several lines, so to pin,
 reply or text from that list, use the row's `allo_number`, never a guess. If no
 inbox matches, list the ones that exist rather than falling back to a line. If
@@ -88,8 +95,10 @@ the user.
 **Pin or unpin a customer.** `allo_pin_conversation` and
 `allo_unpin_conversation`, with the customer's number and the line. At most 10
 conversations can be pinned. When the limit is reached, say so, list what is
-pinned (`allo_list_conversations` with `pinned` set to true) and ask which one to
-unpin. Never unpin something on your own to make room.
+pinned and ask which one to unpin. Listing pinned conversations needs a line or
+an inbox, so get the lines from `allo_list_numbers` and call
+`allo_list_conversations` with `pinned` set to true for each. Never unpin
+something on your own to make room.
 
 **Mute or unmute an inbox** ("mute Support"). `allo_update_inbox` with
 `notifications_muted`. Muting only silences notifications; the conversations
@@ -101,12 +110,13 @@ still arrive.
   Never delete one to make room.
 - Invalid filters: say which filter didn't work and offer to create the inbox
   without it.
-- Invalid source: rebuild it from the suggestion or menu option as is; don't
-  hand-edit conditions.
+- Invalid source: rebuild it from the suggestion or menu option. Only merge
+  branches as described above; never change node_ids or digits.
 
 **Delete an inbox only when the user explicitly asks.** Never as cleanup, never
-to "start fresh" during setup. Before deleting, name the consequence: the inbox
-disappears from their switcher (or the teammate's) and its setup is lost. The
+to "start fresh" during setup. Before deleting, confirm the inbox by name and
+whose it is (theirs or a named teammate's), and name the consequence: the inbox
+disappears from that person's switcher and its setup is lost. The
 conversations themselves stay in Allo. Offer muting as the reversible
 alternative.
 
