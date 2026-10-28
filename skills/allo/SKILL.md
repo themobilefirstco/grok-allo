@@ -3,10 +3,11 @@ name: allo
 description: >-
   Run the Allo business phone system from Cursor or Grok. Use whenever the user
   asks about calls, SMS/texts, conversations, transcripts, missed calls,
-  follow-ups, team or outbound analytics, AI receptionist setup, or call flow /
-  IVR / phone menu routing. Triggers on "Allo", "withallo", and phrases like
-  "search our calls", "text this customer", "answer rate", "set up the
-  receptionist", "change the call flow".
+  follow-ups, team or outbound analytics, AI receptionist setup, call flow /
+  IVR / phone menu routing, or inboxes. Triggers on "Allo", "withallo", and
+  phrases like "search our calls", "text this customer", "answer rate", "set up
+  the receptionist", "change the call flow", "set up my inboxes", "my Sales
+  inbox", "pin this customer", "mute Support".
 metadata:
   author: Allo
   short-description: Search calls, send SMS, check analytics, set up receptionist and call flows.
@@ -38,6 +39,55 @@ Then pick the focused skill:
 | Answer rate, dials, funnel, leaderboard, talk time | `allo-analytics` |
 | Configure or go live with the AI receptionist | `allo-receptionist` |
 | Phone menu, ring rules, IVR, inbound routing | `allo-call-flow` |
+| Set up inboxes, open an inbox, pin, mute | this skill, **Inboxes** below |
+
+## Inboxes
+
+An inbox is a personal view of conversations: one or more lines, optionally
+narrowed to callers who took a given phone-menu branch. Inboxes belong to one
+person and show in that person's inbox switcher. Talk about them in business
+terms ("your Sales inbox", "callers who pressed 1"), never about sources, node
+ids or conditions.
+
+**"Set up my inboxes."** Start from `allo_get_inbox_suggestions`: it returns
+ready-made inboxes (one per line, one per menu branch) with their sources
+already filled in. Show the user the proposed list by name, let them drop,
+rename or merge entries, and **confirm the final list before creating
+anything**. Then call `allo_create_inbox` once per confirmed inbox, passing the
+suggestion's sources unchanged. Report what was created, and anything that
+failed.
+
+**Custom branches** ("only callers who pressed 1 on Website FR"). Find the line
+with `allo_list_numbers`, then read its published phone menu with
+`allo_list_menu_options`. Match the user's words to an option's `digits` and
+`label`, and build the source from that option's `node_id`. If no option
+matches, or more than one does, show the options and ask. Never guess a branch.
+
+**Inboxes for a teammate** ("and one for Lucio"). Resolve the teammate with
+`allo_list_users` and pass their id as `user_id` on `allo_create_inbox`. Only
+admins and managers can do this. If the teammate can't access a line, the inbox
+can't include it: say which line, and offer to leave it out. When the name
+matches more than one person, ask which one.
+
+**"Show me my Sales inbox."** Call `allo_list_inboxes`, match the name, and pass
+its `inbox_id` to `allo_list_conversations` instead of `allo_number`. If no
+inbox matches, list the ones that exist rather than falling back to a line.
+
+**Pin or unpin a customer.** `allo_pin_conversation` and
+`allo_unpin_conversation`, with the customer's number and the line. At most 10
+conversations can be pinned. When the limit is reached, say so, list what is
+pinned (`allo_list_conversations` with `pinned` set to true) and ask which one to
+unpin. Never unpin something on your own to make room.
+
+**Mute or unmute an inbox** ("mute Support"). `allo_update_inbox` with
+`notifications_muted`. Muting only silences notifications; the conversations
+still arrive.
+
+**Delete an inbox only when the user explicitly asks.** Never as cleanup, never
+to "start fresh" during setup. Before deleting, name the consequence: the inbox
+disappears from their switcher (or the teammate's) and its setup is lost. The
+conversations themselves stay in Allo. Offer muting as the reversible
+alternative.
 
 ## Safety
 
@@ -52,6 +102,8 @@ stop. Only an explicit "send" may call `allo_send_sms`.
 - `allo_send_sms` (show recipients + exact message)
 - `allo_set_agent_status` (going live or taking the receptionist offline)
 - `allo_delete_agent_knowledge`
+- `allo_create_inbox` (show the list of inboxes to create, and whose they are)
+- `allo_delete_inbox` (only on an explicit request)
 - Bulk tagging, queue appends, prompt/config replaces
 - Publishing implications for call flows (MCP only saves a **draft**)
 
@@ -71,6 +123,8 @@ unavailable, never estimated.
 - `allo_send_sms` — outbound customer text
 - `allo_set_agent_status` — changes live call answering
 - `allo_delete_agent_knowledge` — permanent
+- `allo_create_inbox` — creates inboxes, possibly in a teammate's switcher
+- `allo_delete_inbox` — permanent; the inbox and its setup are gone
 
 ## Resources the MCP ships
 

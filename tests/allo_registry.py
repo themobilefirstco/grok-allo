@@ -51,6 +51,11 @@ WRITE_TOOLS = {
     "allo_delete_summary_template",
     "allo_set_number_default_summary_template",
     "allo_save_call_flow_draft",
+    "allo_create_inbox",
+    "allo_update_inbox",
+    "allo_delete_inbox",
+    "allo_pin_conversation",
+    "allo_unpin_conversation",
 }
 
 # Irreversible or customer-facing. These require explicit confirmation.
@@ -61,6 +66,7 @@ DESTRUCTIVE_TOOLS = {
     "allo_delete_contact_note",
     "allo_delete_summary_template",
     "allo_set_agent_status",
+    "allo_delete_inbox",
 }
 
 # Tools whose parameter lists below were read from the live JSON Schema. Only
@@ -82,7 +88,10 @@ TOOLS = {
     "allo_list_numbers": ((), ("page", "size")),
     "allo_list_tags": ((), ()),
     # --- Conversations ---
-    "allo_list_conversations": ((), ("allo_number", "page", "size", "unread")),
+    "allo_list_conversations": (
+        (),
+        ("allo_number", "inbox_id", "page", "pinned", "size", "unread"),
+    ),
     "allo_search_conversation_items": (
         (),
         (
@@ -175,6 +184,18 @@ TOOLS = {
     # --- Call flows ---
     "allo_get_call_flow": (("number",), ("status",)),
     "allo_save_call_flow_draft": (("number", "definition", "lock_version"), ()),
+    # --- Inboxes (TECH-8362; names from the mcp-allo contract, not yet live) ---
+    "allo_list_inboxes": ((), ("user_id",)),
+    "allo_get_inbox_suggestions": ((), ()),
+    "allo_list_menu_options": (("number",), ()),
+    "allo_create_inbox": (("name", "sources"), ("emoji", "filters", "user_id")),
+    "allo_update_inbox": (
+        ("inbox_id",),
+        ("emoji", "filters", "name", "notifications_muted", "sources", "user_id"),
+    ),
+    "allo_delete_inbox": (("inbox_id",), ("user_id",)),
+    "allo_pin_conversation": (("contact_number", "allo_number"), ()),
+    "allo_unpin_conversation": (("contact_number", "allo_number"), ()),
 }
 
 # Enum values verified from the live schemas. The skills must not invent members.
@@ -194,6 +215,7 @@ LIMITS = {
     "page_size_max": 100,
     "batch_get_max": 100,
     "dialing_queue_max": 1000,
+    "pinned_conversations_max": 10,
     "read_per_second": 20,
     "write_per_second": 5,
 }

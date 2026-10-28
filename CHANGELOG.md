@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Inboxes in the `allo` skill (TECH-8362): set up inboxes from Allo's
+  suggestions after the user confirms the list, custom phone-menu branch
+  inboxes, inboxes for a teammate (admins and managers), opening a named inbox,
+  pinning customers (max 10), muting an inbox, and deleting one only on an
+  explicit request. `allo_create_inbox` and `allo_delete_inbox` join the
+  high-consequence list.
+- Registry and mock entries for `allo_list_inboxes`,
+  `allo_get_inbox_suggestions`, `allo_list_menu_options`, `allo_create_inbox`,
+  `allo_update_inbox`, `allo_delete_inbox`, `allo_pin_conversation` and
+  `allo_unpin_conversation`, plus `inbox_id` and `pinned` on
+  `allo_list_conversations`. Requires the matching mcp.withallo.com release.
+- Inbox workflow tests: set up for me, set up for a teammate, list a named
+  inbox's conversations, and the pin-limit error.
+
 ## 1.0.0 — unreleased
 
 First release of the Allo plugin for Grok.

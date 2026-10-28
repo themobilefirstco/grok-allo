@@ -19,7 +19,7 @@ import unittest
 from pathlib import Path
 
 from allo_registry import DESTRUCTIVE_TOOLS, ENUMS
-from mock_mcp import MockAlloMcp, MockMcpError
+from mock_mcp import INBOX_SUGGESTIONS, MockAlloMcp, MockMcpError
 from textutil import normalize
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -326,6 +326,151 @@ class TestReceptionistWorkflow(unittest.TestCase):
         self.assertRegex(text, r"not undoable|permanent")
 
 
+class TestInboxWorkflow(unittest.TestCase):
+    """Inboxes: set up, teammate inboxes, open by name, pin, mute, delete."""
+
+    def setUp(self):
+        self.mcp = MockAlloMcp()
+
+    def _set_up_from_suggestions(self, keep, user_id=None):
+        """Suggestions -> user confirms `keep` -> one create per confirmed inbox."""
+        suggestions = self.mcp.call("allo_get_inbox_suggestions")["data"]
+        confirmed = [s for s in suggestions if s["name"] in keep]
+        extra = {"user_id": user_id} if user_id else {}
+        for s in confirmed:
+            self.mcp.call(
+                "allo_create_inbox", name=s["name"], emoji=s["emoji"], sources=s["sources"], **extra
+            )
+        return confirmed
+
+    def test_set_up_my_inboxes_starts_from_suggestions(self):
+        self._set_up_from_suggestions(keep={"Sales", "Sales FR"})
+        used = self.mcp.tools_used()
+        self.assertEqual(used[0], "allo_get_inbox_suggestions")
+        self.assertEqual(self.mcp.count("allo_create_inbox"), 2, "only the confirmed inboxes")
+        self.assertEqual(self.mcp.count("allo_list_menu_options"), 0, "suggestions need no menu lookup")
+        mine = self.mcp.call("allo_list_inboxes")["data"]
+        self.assertEqual({i["name"] for i in mine}, {"Sales", "Sales FR"})
+        self.assertTrue(all(i["owner"] == "usr-003" for i in mine))
+
+    def test_custom_branch_comes_from_the_published_menu(self):
+        # "Only callers who pressed 1 on Sales."
+        options = self.mcp.call("allo_list_menu_options", number="+15005550101")["data"]
+        option = next(o for o in options if o["digits"] == "1")
+        source = {
+            "allo_number": "+15005550101",
+            "conditions": [
+                {"type": "MENU_OPTION", "node_id": option["node_id"], "digits": ["1"], "include_no_choice": False}
+            ],
+        }
+        created = self.mcp.call("allo_create_inbox", name="Pressed 1", sources=[source])["data"]
+        self.assertEqual(created["sources"][0]["conditions"][0]["node_id"], "node-2")
+
+    def test_invented_menu_branch_is_rejected(self):
+        source = {"allo_number": "+15005550101", "conditions": [{"type": "MENU_OPTION", "node_id": "node-99"}]}
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call("allo_create_inbox", name="Guess", sources=[source])
+        self.assertEqual(ctx.exception.code, "INVALID_INBOX_SOURCE")
+
+    def test_set_up_one_for_a_teammate(self):
+        # "...and one for Dana." Resolve the teammate first, then pass user_id.
+        users = self.mcp.call("allo_list_users")["data"]
+        dana = next(u for u in users if u["name"].startswith("Dana"))
+        self._set_up_from_suggestions(keep={"Sales"}, user_id=dana["id"])
+        self.assertLess(
+            self.mcp.tools_used().index("allo_list_users"),
+            self.mcp.tools_used().index("allo_create_inbox"),
+        )
+        theirs = self.mcp.call("allo_list_inboxes", user_id=dana["id"])["data"]
+        self.assertEqual([i["name"] for i in theirs], ["Sales"])
+        self.assertEqual(self.mcp.call("allo_list_inboxes")["data"], [], "not in the caller's switcher")
+
+    def test_teammate_inbox_needs_their_line_access(self):
+        support = next(s for s in INBOX_SUGGESTIONS if s["name"] == "Support")
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call("allo_create_inbox", name="Support", sources=support["sources"], user_id="usr-002")
+        self.assertEqual(ctx.exception.code, "ALLO_NUMBER_FORBIDDEN")
+
+    def test_teammate_inbox_needs_admin_or_manager(self):
+        agent = MockAlloMcp(caller="usr-001")
+        with self.assertRaises(MockMcpError) as ctx:
+            agent.call(
+                "allo_create_inbox",
+                name="Sales",
+                sources=[{"allo_number": "+15005550101", "conditions": []}],
+                user_id="usr-002",
+            )
+        self.assertEqual(ctx.exception.code, "FORBIDDEN")
+
+    def test_named_inbox_lists_its_conversations_by_inbox_id(self):
+        # "Show me my Sales inbox."
+        self._set_up_from_suggestions(keep={"Sales", "Support"})
+        inboxes = self.mcp.call("allo_list_inboxes")["data"]
+        sales = next(i for i in inboxes if i["name"].lower() == "sales")
+        result = self.mcp.call("allo_list_conversations", inbox_id=sales["id"])
+        _, args = self.mcp.calls[-1]
+        self.assertNotIn("allo_number", args, "a named inbox is listed by inbox_id, not by line")
+        contacts = {r["contact_number"] for r in result["data"]}
+        self.assertEqual(contacts, {"+15005559001", "+15005559002", "+15005559003"})
+
+    def test_list_conversations_takes_exactly_one_scope(self):
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call("allo_list_conversations")
+        self.assertEqual(ctx.exception.code, "INVALID_REQUEST")
+
+    def test_someone_elses_inbox_is_not_found(self):
+        created = self.mcp.call(
+            "allo_create_inbox",
+            name="Sales",
+            sources=[{"allo_number": "+15005550101", "conditions": []}],
+            user_id="usr-002",
+        )["data"]
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call("allo_list_conversations", inbox_id=created["id"])
+        self.assertEqual(ctx.exception.code, "INBOX_NOT_FOUND")
+
+    def test_pin_and_unpin(self):
+        self.mcp.call("allo_pin_conversation", contact_number="+15005559001", allo_number="+15005550101")
+        pinned = self.mcp.call("allo_list_conversations", allo_number="+15005550101", pinned=True)["data"]
+        self.assertEqual([r["contact_number"] for r in pinned], ["+15005559001"])
+        self.mcp.call("allo_unpin_conversation", contact_number="+15005559001", allo_number="+15005550101")
+        self.assertEqual(
+            self.mcp.call("allo_list_conversations", allo_number="+15005550101", pinned=True)["data"], []
+        )
+
+    def test_pin_limit_is_reported_not_worked_around(self):
+        self.mcp.pins = [("+15005550101", f"+150055580{i:02d}") for i in range(10)]
+        with self.assertRaises(MockMcpError) as ctx:
+            self.mcp.call("allo_pin_conversation", contact_number="+15005559001", allo_number="+15005550101")
+        self.assertEqual(ctx.exception.code, "PIN_LIMIT_REACHED")
+        self.assertIn("10", ctx.exception.message)
+        # The skill's recovery: show what is pinned and ask. Nothing gets unpinned automatically.
+        self.assertEqual(len(self.mcp.pins), 10)
+        self.assertEqual(self.mcp.count("allo_unpin_conversation"), 0)
+
+    def test_mute_is_an_update_not_a_delete(self):
+        self._set_up_from_suggestions(keep={"Support"})
+        support = self.mcp.call("allo_list_inboxes")["data"][0]
+        self.mcp.call("allo_update_inbox", inbox_id=support["id"], notifications_muted=True)
+        self.assertTrue(self.mcp.call("allo_list_inboxes")["data"][0]["notifications_muted"])
+        self.assertEqual(self.mcp.count("allo_delete_inbox"), 0)
+
+    def test_setup_never_deletes(self):
+        self._set_up_from_suggestions(keep={"Sales", "Support", "Sales FR"})
+        self.assertEqual(self.mcp.count("allo_delete_inbox"), 0)
+
+    def test_skill_documents_the_inbox_rules(self):
+        text = normalize(skill_text("allo"))
+        self.assertIn("allo_get_inbox_suggestions", text)
+        self.assertRegex(text, r"confirm the final list before creating")
+        self.assertRegex(text, r"admins and managers")
+        self.assertIn("inbox_id", text)
+        self.assertRegex(text, r"at most 10")
+        self.assertIn("notifications_muted", text)
+        self.assertRegex(text, r"delete an inbox only when the user explicitly asks")
+        self.assertIn("allo_delete_inbox", text)
+
+
 class TestErrorHandling(unittest.TestCase):
     """Check 12 — error handling."""
 
@@ -383,6 +528,7 @@ class TestSafetyContract(unittest.TestCase):
                 "allo_send_sms",
                 "allo_delete_agent_knowledge",
                 "allo_set_agent_status",
+                "allo_delete_inbox",
             }:
                 self.assertIn(tool, text, f"{tool} must be documented as high-consequence")
 

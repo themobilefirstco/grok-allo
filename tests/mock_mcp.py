@@ -128,6 +128,39 @@ AGENT = {
     ],
 }
 
+# Lines each user can access, as the server's line-access rule would resolve it.
+LINE_ACCESS = {
+    "usr-001": {"+15005550101", "+15005550102"},
+    "usr-002": {"+15005550101"},
+    "usr-003": {"+15005550101", "+15005550102"},
+}
+
+# The published phone menu on the Sales line.
+MENU_OPTIONS = {
+    "+15005550101": [
+        {"node_id": "node-2", "path": [{"node_id": "node-1", "digit": "1"}], "digits": "1", "label": "Sales FR"},
+        {"node_id": "node-3", "path": [{"node_id": "node-1", "digit": "2"}], "digits": "2", "label": "Support FR"},
+    ],
+    "+15005550102": [],
+}
+
+INBOX_SUGGESTIONS = [
+    {"name": "Sales", "emoji": "💼", "sources": [{"allo_number": "+15005550101", "conditions": []}]},
+    {"name": "Support", "emoji": "🛟", "sources": [{"allo_number": "+15005550102", "conditions": []}]},
+    {
+        "name": "Sales FR",
+        "emoji": "🇫🇷",
+        "sources": [
+            {
+                "allo_number": "+15005550101",
+                "conditions": [
+                    {"type": "MENU_OPTION", "node_id": "node-2", "digits": ["1"], "include_no_choice": False}
+                ],
+            }
+        ],
+    },
+]
+
 VOICES = [
     {"id": "voice-aurora", "name": "Aurora", "style": "warm"},
     {"id": "voice-atlas", "name": "Atlas", "style": "neutral"},
@@ -137,10 +170,14 @@ VOICES = [
 class MockAlloMcp:
     """A callable fake of the Allo MCP tool surface."""
 
-    def __init__(self, scopes=None, fail_with=None):
+    def __init__(self, scopes=None, fail_with=None, caller="usr-003"):
         # `scopes=None` means "everything"; pass a set to simulate a restricted
         # connection. `fail_with` forces an error for error-handling tests.
+        # `caller` is the user the connection acts as (default: the admin).
         self.scopes = scopes
+        self.caller = caller
+        self.inboxes = []          # created inboxes, each with its owner
+        self.pins = []             # [(allo_number, contact_number)] for the caller
         self.fail_with = fail_with or {}
         self.calls = []            # [(tool, args)] in order
         self.sent_sms = []         # dry-run receipts; never leaves the process
@@ -426,3 +463,127 @@ class MockAlloMcp:
         if len(self.agent["knowledge"]) == before:
             raise MockMcpError("NOT_FOUND", f"no knowledge source {id}")
         return {"data": {"deleted": id}}
+
+    # -- inboxes --
+
+    def _inbox_owner(self, user_id):
+        """The user an inbox call acts for, enforcing the teammate rule."""
+        if user_id is None or user_id == self.caller:
+            return self.caller
+        if user_id not in LINE_ACCESS:
+            raise MockMcpError("USER_NOT_FOUND", f"no user {user_id}")
+        role = next(u["role"] for u in USERS if u["id"] == self.caller)
+        if role not in ("ADMIN", "MANAGER"):
+            raise MockMcpError("FORBIDDEN", "only admins and managers manage a teammate's inboxes")
+        return user_id
+
+    def _check_sources(self, owner, sources):
+        if not sources:
+            raise MockMcpError("INVALID_INBOX_SOURCE", "an inbox needs at least one source")
+        for source in sources:
+            line = source.get("allo_number")
+            if line not in LINE_ACCESS[owner]:
+                raise MockMcpError("ALLO_NUMBER_FORBIDDEN", f"{owner} cannot access {line}")
+            known = {o["node_id"] for o in MENU_OPTIONS.get(line, [])}
+            for cond in source.get("conditions", []):
+                if cond.get("type") == "MENU_OPTION" and cond.get("node_id") not in known:
+                    raise MockMcpError("INVALID_INBOX_SOURCE", f"unknown menu node {cond.get('node_id')}")
+
+    def _find_inbox(self, inbox_id, owner):
+        inbox = next((i for i in self.inboxes if i["id"] == inbox_id), None)
+        # Inboxes are personal: someone else's inbox is indistinguishable from a missing one.
+        if inbox is None or inbox["owner"] != owner:
+            raise MockMcpError("INBOX_NOT_FOUND", f"no inbox {inbox_id}")
+        return inbox
+
+    def _allo_list_inboxes(self, user_id=None):
+        self._require("INBOXES_READ")
+        owner = self._inbox_owner(user_id)
+        return {"data": [i for i in self.inboxes if i["owner"] == owner]}
+
+    def _allo_get_inbox_suggestions(self):
+        self._require("INBOXES_READ")
+        return {"data": [dict(s) for s in INBOX_SUGGESTIONS]}
+
+    def _allo_list_menu_options(self, number):
+        self._require("INBOXES_READ")
+        if number not in MENU_OPTIONS:
+            raise MockMcpError("NOT_FOUND", f"unknown line {number}")
+        return {"data": MENU_OPTIONS[number]}
+
+    def _allo_create_inbox(self, name, sources, emoji=None, filters=None, user_id=None):
+        self._require("INBOXES_WRITE")
+        if not name or not name.strip():
+            raise MockMcpError("INBOX_NAME_REQUIRED", "name is required")
+        owner = self._inbox_owner(user_id)
+        self._check_sources(owner, sources)
+        inbox = {
+            "id": f"inb_{len(self.inboxes) + 1:03d}",
+            "name": name,
+            "emoji": emoji,
+            "sources": sources,
+            "filters": filters or {},
+            "notifications_muted": False,
+            "owner": owner,
+        }
+        self.inboxes.append(inbox)
+        return {"data": inbox}
+
+    def _allo_update_inbox(self, inbox_id, user_id=None, **changes):
+        self._require("INBOXES_WRITE")
+        owner = self._inbox_owner(user_id)
+        inbox = self._find_inbox(inbox_id, owner)
+        if "sources" in changes:
+            self._check_sources(owner, changes["sources"])
+        inbox.update(changes)
+        return {"data": inbox}
+
+    def _allo_delete_inbox(self, inbox_id, user_id=None):
+        self._require("INBOXES_WRITE")
+        owner = self._inbox_owner(user_id)
+        inbox = self._find_inbox(inbox_id, owner)
+        self.inboxes.remove(inbox)
+        return {"data": {"deleted": inbox_id}}
+
+    def _allo_list_conversations(self, allo_number=None, inbox_id=None, pinned=None, **_):
+        self._require("CONVERSATIONS_READ")
+        if bool(allo_number) == bool(inbox_id):
+            raise MockMcpError("INVALID_REQUEST", "provide exactly one of allo_number or inbox_id")
+        if inbox_id:
+            inbox = self._find_inbox(inbox_id, self.caller)
+            lines = {s["allo_number"] for s in inbox["sources"]}
+        else:
+            lines = {allo_number}
+        rows = {}
+        for item in ITEMS:
+            if item["allo_number"] in lines:
+                key = (item["allo_number"], item["contact_number"])
+                rows.setdefault(key, {
+                    "contact_number": item["contact_number"],
+                    "allo_number": item["allo_number"],
+                    "pinned": key in self.pins,
+                })
+        data = list(rows.values())
+        if pinned is not None:
+            data = [r for r in data if r["pinned"] == pinned]
+        return {"data": data, "pagination": {"total_count": len(data)}}
+
+    def _allo_pin_conversation(self, contact_number, allo_number):
+        self._require("CONVERSATIONS_WRITE")
+        key = (allo_number, contact_number)
+        if key in self.pins:
+            return {"data": {"pinned": True}}
+        if len(self.pins) >= LIMITS["pinned_conversations_max"]:
+            raise MockMcpError(
+                "PIN_LIMIT_REACHED",
+                "You can pin up to 10 conversations. Unpin one to make room.",
+            )
+        self.pins.append(key)
+        return {"data": {"pinned": True}}
+
+    def _allo_unpin_conversation(self, contact_number, allo_number):
+        self._require("CONVERSATIONS_WRITE")
+        key = (allo_number, contact_number)
+        if key in self.pins:
+            self.pins.remove(key)
+        return {"data": {"pinned": False}}
