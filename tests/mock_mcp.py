@@ -657,10 +657,9 @@ class MockAlloMcp:
 
     @staticmethod
     def _normalize_filters(filters):
-        """Validate like the API (keys, types, blanks, caps) and fill all four keys."""
-        filters = filters or {}
-        if set(filters) - INBOX_FILTER_KEYS:
-            raise MockMcpError("INVALID_INBOX_FILTERS", f"unknown filter keys {sorted(set(filters) - INBOX_FILTER_KEYS)}")
+        """Validate like the API (types, blanks, caps) and fill all four keys."""
+        # Unknown keys, `unread` included, are silently dropped, as the API ignores them.
+        filters = {k: v for k, v in (filters or {}).items() if k in INBOX_FILTER_KEYS}
         if set(filters.get("types") or []) - set(INBOX_FILTER_TYPES):
             raise MockMcpError("INVALID_INBOX_FILTERS", "unknown activity type")
         for key, cap in (("user_ids", 50), ("contact_ids", 50), ("contact_list_ids", 10)):

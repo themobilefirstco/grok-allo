@@ -606,18 +606,18 @@ class TestInboxWorkflow(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "FORBIDDEN")
 
     def test_unread_is_an_argument_not_a_saved_filter(self):
-        with self.assertRaises(MockMcpError) as ctx:
-            self.mcp.call(
-                "allo_create_inbox",
-                name="Sales unread",
-                sources=[{"allo_number": self.SALES, "conditions": []}],
-                filters={"unread": True},
-            )
-        self.assertEqual(ctx.exception.code, "INVALID_INBOX_FILTERS")
+        # A saved `unread` is silently dropped, so it never narrows the inbox.
         inbox = self.mcp.call(
-            "allo_create_inbox", name="Sales", sources=[{"allo_number": self.SALES, "conditions": []}]
+            "allo_create_inbox",
+            name="Sales unread",
+            sources=[{"allo_number": self.SALES, "conditions": []}],
+            filters={"unread": True},
         )["data"]
-        self.assertNotIn("unread", inbox["filters"])
+        self.assertEqual(
+            inbox["filters"], {"types": [], "user_ids": [], "contact_ids": [], "contact_list_ids": []}
+        )
+        everything = self.mcp.call("allo_list_conversations", inbox_id=inbox["id"])["data"]
+        self.assertEqual(len(everything), 3)
         unread = self.mcp.call("allo_list_conversations", inbox_id=inbox["id"], unread=True)["data"]
         self.assertEqual({r["contact_number"] for r in unread}, {"+15005559001", "+15005559002"})
 
