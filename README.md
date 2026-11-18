@@ -361,7 +361,7 @@ Phone systems touch customers. The skills encode explicit rules:
   new code to installed users.
 - **Least privilege.** Grant the narrowest Allo scopes that cover your use.
 
-Reporting a vulnerability: contact Allo via [help.withallo.com](https://help.withallo.com).
+Reporting a vulnerability: contact Allo via [www.withallo.com/help](https://www.withallo.com/help).
 
 ## Development
 
@@ -648,7 +648,7 @@ required for direct or private distribution.
 
 - Allo — https://www.withallo.com
 - Allo MCP documentation — https://www.withallo.com/mcp
-- Allo Help Center — https://help.withallo.com
+- Allo Help Center — https://www.withallo.com/help
 - xAI plugin documentation — https://docs.x.ai/build/features/skills-plugins-marketplaces
 - xAI plugin marketplace — https://github.com/xai-org/plugin-marketplace
 
